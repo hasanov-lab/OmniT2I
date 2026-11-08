@@ -14,9 +14,11 @@ dependencies = ["torch>=2.0", "numpy>=1.24", "pandas>=2.0", "scipy>=1.10"]
 
 [project.scripts]
 omnit2i-prepare-rna = "omnit2i.preprocessing.rna:main"
+omnit2i-train-rna = "omnit2i.training.rna:main"
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
+training = ["scikit-survival>=0.25"]
 
 [tool.setuptools.packages.find]
 include = ["omnit2i*"]

@@ -37,7 +37,7 @@ The modality order is **RNA, CNV, protein, methylation, H&E**. The spatial encod
 
 ```bash
 python examples/model_components.py
-pip install '.[test]'
+pip install '.[test,training]'
 python -m pytest -q
 ```
 
@@ -69,9 +69,30 @@ images = transform_rna(expression, cohort, artifact)
 
 The `omnit2i.preprocessing` modules also provide the extracted CNV scaling, protein filtering/imputation, and promoter-gene methylation beta-to-M conversion, filtering, and standardization functions. Their raw-data preparation commands are still being organized. The methylation functions operate on promoter-gene profiles, rather than raw probe-level arrays.
 
+## RNA training
+
+```bash
+pip install '.[training]'  # Included when installing requirements.txt.
+omnit2i-train-rna --images outputs/rna/images.npz --output-dir outputs/rna_training --seed 101 --device cuda
+```
+
+This command trains the spatial RNA encoder with masked reconstruction on core patients, then fits the encoder and Cox head on the entire core risk set. It handles tied follow-up times with Breslow denominators. Validation C-index selects the checkpoint; validation risk mean and standard deviation define the saved risk scaling. Test patients contribute to neither fitting nor checkpoint selection. Masking affects measured pixels only and preserves zero padding.
+
+Defaults are 80 pretraining epochs, up to 180 Cox epochs, patience 25, mask fraction 0.15, and AdamW learning rates 0.001 with weight decay 0.0001. The command defaults to CPU unless `--device` is supplied. `--seed` is the final training seed for the supplied partition; prepare each fold separately and pass its intended seed explicitly. CUDA runs need enough memory for a full core forward pass: the Cox risk set is not split into independent minibatch losses.
+
+Outputs are `model.pt`, patient-level `predictions.csv`, `embeddings.npz`, training histories, and `options.json`. The checkpoint contains the selected model state and validation risk scaling. Retain its corresponding `preprocessing.npz` to transform new samples. Risk scores are relative Cox scores, not absolute survival probabilities.
+
+A short CPU run using synthetic expression and patient metadata exercises both commands:
+
+```bash
+python examples/rna_workflow.py --output-dir outputs/synthetic_rna
+```
+
+The synthetic example selects 60 genes for speed. It checks the software workflow and does not reproduce experimental performance.
+
 ## Release status
 
-Multimodal data preparation, training workflows, and evaluation scripts are being prepared in stages. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
+Multimodal data preparation, fusion/joint training, and evaluation scripts are being prepared in stages. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
 
 ## Development
 
