@@ -23,7 +23,7 @@ The modality order is **RNA, CNV, protein, methylation, H&E**. The spatial encod
 
 ```bash
 python examples/model_components.py
-pip install '.[test,training]'
+pip install '.[test,data,training,analysis]'
 python -m pytest -q
 ```
 
