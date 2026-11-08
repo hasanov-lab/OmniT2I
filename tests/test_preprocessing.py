@@ -13,6 +13,7 @@ from omnit2i.preprocessing.cnv_t2i import (
 from omnit2i.preprocessing.cox_score_corrected import cox_score_z
 from omnit2i.preprocessing.methylation_t2i import beta_to_m_value, render_option2
 from omnit2i.preprocessing.rna import fit_rna_preprocessing, main, transform_rna
+from omnit2i.preprocessing.rna_t2i import render_option2 as render_rna_option2, sample_gamma
 from omnit2i.preprocessing.rppa_t2i import fit_impute_standardize, transform_impute_standardize
 
 
@@ -31,15 +32,15 @@ def rna_inputs():
     return expression, cohort
 
 
-def test_rna_fits_only_core_and_serializes_without_pickle(tmp_path):
+def test_rna_excludes_outer_test_and_serializes_without_pickle(tmp_path):
     expression, cohort = rna_inputs()
     artifact = fit_rna_preprocessing(expression, cohort, top_n=12, invariant_per_bin=2)
     changed_expression = expression.copy()
-    changed_expression.iloc[:, 8:] *= 100
+    changed_expression.iloc[:, 10:] *= 100
     changed_cohort = cohort.copy()
-    changed_cohort.loc[8:, "time"] *= 17
-    changed_cohort.loc[8:, "event"] = 1
-    changed_cohort.loc[8:, "cancer_type"] = "unseen"
+    changed_cohort.loc[10:, "time"] *= 17
+    changed_cohort.loc[10:, "event"] = 1
+    changed_cohort.loc[10:, "cancer_type"] = "unseen"
     changed = fit_rna_preprocessing(changed_expression, changed_cohort, top_n=12, invariant_per_bin=2)
     for key in artifact:
         if np.issubdtype(artifact[key].dtype, np.number):
@@ -53,6 +54,27 @@ def test_rna_fits_only_core_and_serializes_without_pickle(tmp_path):
     assert images.shape == (12, 3, 45, 45) and np.isfinite(images).all()
     reordered = transform_rna(expression, cohort.iloc[::-1], restored)
     np.testing.assert_array_equal(reordered, images[::-1])
+
+
+def test_rna_outer_training_references_and_core_only_c3():
+    expression, cohort = rna_inputs()
+    artifact = fit_rna_preprocessing(expression, cohort, top_n=12, invariant_per_bin=2)
+    train = cohort.loc[cohort["partition"].ne("test")]
+    samples = train["sample"].tolist()
+    gamma = sample_gamma(expression, samples, artifact["invariant_genes"].tolist())
+    matrix = expression.loc[artifact["feature_ids"], samples].sub(gamma, axis=1).T
+    np.testing.assert_array_equal(artifact["train_means"], matrix.mean(axis=0).to_numpy(np.float32))
+    np.testing.assert_array_equal(artifact["train_stds"], matrix.std(axis=0, ddof=0).to_numpy(np.float32))
+    standardized = (matrix.to_numpy(np.float32) - artifact["train_means"]) / artifact["train_stds"]
+    core = train["partition"].eq("core").to_numpy()
+    expected = cox_score_z(standardized[core], train.loc[core, "time"].to_numpy(float), train.loc[core, "event"].to_numpy(bool))
+    np.testing.assert_array_equal(artifact["cox_score_z"], expected)
+    changed = cohort.copy()
+    changed.loc[changed["partition"].eq("validation"), "time"] *= 10
+    changed.loc[changed["partition"].eq("validation"), "event"] = 1
+    second = fit_rna_preprocessing(expression, changed, top_n=12, invariant_per_bin=2)
+    for key in artifact:
+        np.testing.assert_array_equal(artifact[key], second[key])
 
 
 def test_cohort_rejects_patient_overlap_and_bad_survival():
@@ -88,11 +110,12 @@ def test_cox_score_matches_eventwise_tied_risk_sets():
     np.testing.assert_allclose(cox_score_z(x[order], time[order], event[order]), expected, atol=1e-6)
 
 
-def test_serpentine_channels_and_zero_padding():
+@pytest.mark.parametrize("renderer", [render_option2, render_rna_option2])
+def test_serpentine_channels_and_zero_padding(renderer):
     x = np.array([[1, 2, 3, 4, 5]], dtype=np.float32)
     order = np.array([4, 0, 3, 1, 2])
     scores = np.array([2, -1, 0, 0.5, 3])
-    image = render_option2(x, -x, scores, order, 2, 3)
+    image = renderer(x, -x, scores, order, 2, 3)
     np.testing.assert_array_equal(snake_pixel_indices(2, 3), [0, 1, 2, 5, 4, 3])
     pixels = np.array([0, 1, 2, 5, 4])
     flat = image.reshape(1, 3, -1)

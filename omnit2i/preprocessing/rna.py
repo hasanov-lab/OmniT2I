@@ -28,8 +28,10 @@ def fit_rna_preprocessing(
     height: int = 45,
     width: int = 45,
 ) -> dict[str, np.ndarray]:
-    """Fit on core patients only; expression rows are genes, columns are samples.
+    """Fit outer-training references and core-only C3, as in the manuscript version.
 
+    Expression rows are genes and columns are samples. Outer training includes
+    core and validation patients; only C3 uses core outcomes.
     Input values must already use the intended upstream expression scale;
     this function does not log-transform counts.
     """
@@ -42,11 +44,12 @@ def fit_rna_preprocessing(
         raise ValueError("top_n must be at least 2 and fit both the feature set and image grid")
     if not 1 <= expression_bins <= len(expression) or invariant_per_bin < 1:
         raise ValueError("Invalid invariant gene panel size")
-    core = cohort.loc[cohort["partition"].eq("core")]
-    samples = core["sample"].tolist()
+    train = cohort.loc[cohort["partition"].ne("test")]
+    core = train["partition"].eq("core").to_numpy()
+    samples = train["sample"].tolist()
     values = expression.loc[:, samples]
     if not np.isfinite(values.to_numpy()).all():
-        raise ValueError("Core RNA expression must be finite; supply a complete expression matrix")
+        raise ValueError("Outer-training RNA expression must be finite; supply a complete expression matrix")
     panel = select_invariant_genes(expression, samples, expression_bins, invariant_per_bin)
     invariant = panel["gene"].astype(str).tolist()
     corrected = values.sub(sample_gamma(expression, samples, invariant), axis=1)
@@ -58,7 +61,7 @@ def fit_rna_preprocessing(
     stds[stds < 1e-6] = 1.0
     standardized = ((matrix.to_numpy(dtype=np.float32) - means) / stds).astype(np.float32)
     labels, cancer_means, cancer_stds, global_mean, global_std = fit_cancer_standardization(
-        standardized, core["cancer_type"]
+        standardized, train["cancer_type"]
     )
     return {
         "feature_ids": np.asarray(genes, dtype=str),
@@ -71,7 +74,7 @@ def fit_rna_preprocessing(
         "global_cancer_mean": global_mean,
         "global_cancer_std": global_std,
         "cox_score_z": cox_score_z(
-            standardized, core["time"].to_numpy(float), core["event"].to_numpy(bool)
+            standardized[core], train.loc[core, "time"].to_numpy(float), train.loc[core, "event"].to_numpy(bool)
         ),
         "layout_order": corr_hclust_order(standardized),
         "grid_height": np.asarray(height),
@@ -85,7 +88,7 @@ def transform_rna(
     """Apply saved parameters to samples in cohort order, without refitting.
 
     All selected and invariant genes must be present and finite. New cancer
-    types use the core global mean and standard deviation for channel 2.
+    types use the outer-training global mean and standard deviation for channel 2.
     """
     if expression.index.has_duplicates or expression.columns.has_duplicates:
         raise ValueError("Expression gene and sample identifiers must be unique")

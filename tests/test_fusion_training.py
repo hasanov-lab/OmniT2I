@@ -12,22 +12,22 @@ from omnit2i.training.fusion import build_fusion_model, fit_fusion, load_molecul
 from omnit2i.training.multimodal_data import load_multimodal_data
 
 
-def test_sparse_patient_alignment_and_core_only_he_scaling(multimodal_files):
+def test_sparse_patient_alignment_and_outer_training_he_scaling(multimodal_files):
     cohort_path, paths, _, availability = multimodal_files
     data = load_multimodal_data(cohort_path, paths)
     np.testing.assert_array_equal(data.availability, availability)
     with np.load(paths[-1], allow_pickle=False) as saved:
         raw, patients = saved["embeddings"], saved["patient"]
     mapping = data.cohort.set_index("patient")["partition"]
-    core = mapping.loc[patients].eq("core").to_numpy()
-    np.testing.assert_allclose(data.he_standardization["mean"], raw[core].mean(axis=0, dtype=np.float64).astype(np.float32))
+    train = mapping.loc[patients].ne("test").to_numpy()
+    np.testing.assert_array_equal(data.he_standardization["mean"], raw[train].mean(axis=0, dtype=np.float64).astype(np.float32))
     changed = raw.copy()
-    changed[~core] *= 100
+    changed[~train] *= 100
     np.savez_compressed(paths[-1], patient=patients, embeddings=changed)
     second = load_multimodal_data(cohort_path, paths)
     np.testing.assert_array_equal(data.he_standardization["mean"], second.he_standardization["mean"])
     np.testing.assert_array_equal(data.he_standardization["std"], second.he_standardization["std"])
-    np.testing.assert_array_equal(data.inputs[-1][core], second.inputs[-1][core])
+    np.testing.assert_array_equal(data.inputs[-1][train], second.inputs[-1][train])
 
 
 @pytest.mark.parametrize("bad", ["duplicate", "unknown", "partition"])

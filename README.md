@@ -53,7 +53,7 @@ The expression TSV has gene IDs in its first column and sample IDs in the remain
 
 The cohort CSV contains `patient,sample,cancer_type,time,event,partition`. Each row is one unique patient and sample; `partition` is `core`, `validation`, or `test`, `time` is positive follow-up time in a consistent unit, and `event` is 1 for an observed event and 0 for censoring. Supply the same patient partitions to all modalities. The command preserves those partitions and does not generate a new split.
 
-Invariant-gene selection, Top2000 selection, scaling, within-cancer scaling, Breslow Cox-score weights, and correlation-based hierarchical layout are fitted on core patients only. All three channels use the snake layout: globally standardized expression, within-cancer standardized expression, and globally standardized expression multiplied by the Cox-score weight. Unseen cancer types use the core global statistics for the second channel. The output directory must be new; it receives `preprocessing.npz`, `images.npz`, and `cohort.csv`.
+This package follows the manuscript pipeline preceding the full core-only preprocessing rerun, with RNA placement corrected to snake order. Invariant-gene selection, Top2000 selection, scaling, within-cancer scaling, and correlation-based hierarchical layout use outer-training patients (`core` plus `validation`). Corrected Breslow Cox-score weights use core patients and outcomes only. Outer-test patients enter none of these fitted quantities. All three channels use the same snake layout: globally standardized expression, within-cancer standardized expression, and globally standardized expression multiplied by the Cox-score weight. Unseen cancer types use the outer-training global statistics for the second channel. The output directory must be new; it receives `preprocessing.npz`, `images.npz`, and `cohort.csv`.
 
 Saved parameters can be applied to another cohort without refitting:
 
@@ -104,7 +104,7 @@ Supply the master cohort CSV described above and one NPZ per modality:
 
 Each archive contains only genuinely observed patients for that modality. Archive rows may have any order: the loader joins by patient ID, rejects duplicate or unknown patients and inconsistent partitions, and derives availability from membership. Every cohort patient needs at least one observed modality. The current backbone also requires every modality to be represented somewhere in each of the core and validation partitions.
 
-Molecular images must use parameters fitted on the supplied core patients. H&E inputs are frozen patient-level embeddings before fold standardization; this command fits their mean and standard deviation on observed core patients and saves those parameters. H&E feature extraction and the CNV/protein/methylation raw-data commands are still being organized.
+Molecular images must use the manuscript preprocessing: feature selection, imputation, scaling, and layouts fitted on outer-training patients; corrected C3 weights fitted on the shared core patients only. H&E inputs are frozen patient-level embeddings before fold standardization; this command fits their mean and standard deviation on observed outer-training patients and saves those parameters. H&E feature extraction and the CNV/protein/methylation raw-data commands are still being organized.
 
 ```bash
 omnit2i-train-fusion --cohort cohort.csv \
@@ -117,7 +117,7 @@ omnit2i-train-fusion --cohort cohort.csv \
 
 The four molecular checkpoints must contain the pretrained spatial encoder under `encoder.*` in `model_state` or `state_dict`. The RNA command above writes this format. Defaults follow the extracted trainer: gated fusion, modality dropout 0.30, auxiliary weight 0.25, alignment weight 1.0, encoder learning rate 0.0001, and fusion learning rate 0.001. `--fusion-mode mean` selects mean fusion. `--seed` is the final seed for this run.
 
-Outputs include the selected `model.pt`, patient-level predictions, fusion weights, history, and options. The checkpoint stores model constructor arguments, core-fitted H&E scaling, and validation risk calibration. Output directories must be new. A short CPU example generates synthetic inputs and random encoder checkpoints:
+Outputs include the selected `model.pt`, patient-level predictions, fusion weights, history, and options. The checkpoint stores model constructor arguments, outer-training H&E scaling, and validation risk calibration. Output directories must be new. A short CPU example generates synthetic inputs and random encoder checkpoints:
 
 ```bash
 python examples/multimodal_workflow.py --output-dir outputs/synthetic_multimodal
@@ -129,7 +129,7 @@ This example checks loading, alignment, fusion training, joint training, and ser
 
 `omnit2i-train-joint` starts from the fusion checkpoint. It first freezes the survival backbone and warms up the translator and feature decoders, then updates those components, the fusion heads, the final molecular convolution blocks, and the H&E adapter. Early molecular layers and BatchNorm running statistics remain fixed. The target modality is excluded from translator inputs; its observed projected embedding is detached supervision. Source dropout retains at least one genuinely observed source.
 
-Reuse the same cohort and input archives as fusion training. The command reuses the checkpoint's core-fitted H&E scaling. Supply a target NPZ with these arrays:
+Reuse the same cohort and input archives as fusion training. The command reuses the checkpoint's outer-training H&E scaling. Supply a target NPZ with these arrays:
 
 | Array | Contents |
 | --- | --- |
@@ -140,7 +140,7 @@ Reuse the same cohort and input archives as fusion training. The command reuses 
 | `<modality>_target` | Float `[patients, features]` in the measured target feature space |
 | `<modality>_feature_ids` | Unique feature IDs in the corresponding column order |
 
-Targets are prepared molecular profiles or H&E embeddings, rather than image pixels. Any upstream filtering, imputation, and scaling must be fitted on core patients only. Observed target rows must be finite; missing rows may contain NaNs. Optional `cancer_type`, `partition`, and `outer_test` arrays are checked against the cohort when present. The existing cancer-specific mean subtraction is fitted on observed core targets, with the core global mean used for unseen cancers. Validation targets are transformed with those saved means; test targets do not enter optimization or checkpoint selection. Both core and validation need patients with at least two observed modalities.
+Targets are prepared molecular profiles or H&E embeddings, rather than image pixels. Their upstream filtering, imputation, and scaling retain the manuscript's outer-training references. Observed target rows must be finite; missing rows may contain NaNs. Optional `cancer_type`, `partition`, and `outer_test` arrays are checked against the cohort when present. The existing cancer-specific mean subtraction is fitted on observed core targets, with the core global mean used for unseen cancers. Validation targets are transformed with those saved means; test targets do not enter optimization or checkpoint selection. Both core and validation need patients with at least two observed modalities.
 
 ```bash
 omnit2i-train-joint --cohort cohort.csv \

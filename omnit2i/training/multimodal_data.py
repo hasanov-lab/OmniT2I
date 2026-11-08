@@ -64,9 +64,9 @@ def load_multimodal_data(
         if not represented.all():
             raise ValueError(f"The {partition} partition must include an observation of every modality")
     if he_standardization is None:
-        core = cohort.iloc[master_positions[4]]["partition"].eq("core").to_numpy()
-        mean = inputs[4][core].mean(axis=0, dtype=np.float64).astype(np.float32)
-        std = inputs[4][core].std(axis=0, dtype=np.float64).astype(np.float32)
+        train = cohort.iloc[master_positions[4]]["partition"].ne("test").to_numpy()
+        mean = inputs[4][train].mean(axis=0, dtype=np.float64).astype(np.float32)
+        std = inputs[4][train].std(axis=0, dtype=np.float64).astype(np.float32)
         he_standardization = {"mean": mean, "std": np.where(std < 1e-6, 1.0, std).astype(np.float32), "clip": he_clip}
     mean, std = np.asarray(he_standardization["mean"]), np.asarray(he_standardization["std"])
     clip = float(he_standardization["clip"])
