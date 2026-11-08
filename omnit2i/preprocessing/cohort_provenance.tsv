@@ -11,3 +11,5 @@ build_rna_cohort.py	tcga_pancan/runs/os_cindex_top2000_gene_2026-05-26/code/run_
 build_rna_cohort.py	tcga_pancan/code/build_tcga_modeling_inputs.py
 build_methylation_cohort.py	tcga_pancan_multimodal/src/tcga_pancan_multimodal/methylation_audit.py
 he_metadata.py	tcga_pancan/code/tcga_rna_he_quickout/scripts/00_download/build_tcga_he_rna_os_match.py
+omnit2i/preprocessing/splits.py	runs/omnit2i_core_c3_shared_split_v1_2026-10-12/code/prepare.py; src/tcga_pancan_multimodal/train_cnv_t2i.py
+omnit2i/preprocessing/feature_targets.py	src/tcga_pancan_multimodal/export_five_modal_feature_targets.py

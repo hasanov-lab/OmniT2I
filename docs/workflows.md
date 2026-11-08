@@ -31,7 +31,7 @@ The example runs forward and backward passes on synthetic inputs with randomly i
 
 ## Cohort assembly
 
-The [raw-table and cohort commands](cohorts.md) select primary-tumour OS cohorts, preserve the established outer folds, and assemble the five-modality master table. They also provide the cached GDC slide-metadata query.
+The [raw-table and cohort commands](cohorts.md) select primary-tumour OS cohorts, assemble the five-modality master table, and generate shared training partitions. They also provide the cached GDC slide-metadata query and the feature-target and single-fold training commands.
 
 ## RNA preprocessing
 
@@ -43,7 +43,7 @@ The expression TSV has gene IDs in its first column and sample IDs in the remain
 
 The cohort CSV contains `patient,sample,cancer_type,time,event,partition`. Each row is one unique patient and sample; `partition` is `core`, `validation`, or `test`, `time` is positive follow-up time in a consistent unit, and `event` is 1 for an observed event and 0 for censoring. Supply the same patient partitions to all modalities. The command preserves those partitions and does not generate a new split.
 
-This package follows the manuscript pipeline preceding the full core-only preprocessing rerun, with RNA placement corrected to snake order. Invariant-gene selection, Top2000 selection, scaling, within-cancer scaling, and correlation-based hierarchical layout use outer-training patients (`core` plus `validation`). Corrected Breslow Cox-score weights use core patients and outcomes only. Outer-test patients enter none of these fitted quantities. All three channels use the same snake layout: globally standardized expression, within-cancer standardized expression, and globally standardized expression multiplied by the Cox-score weight. Unseen cancer types use the outer-training global statistics for the second channel. The output directory must be new; it receives `preprocessing.npz`, `images.npz`, and `cohort.csv`.
+This package follows the manuscript pipeline preceding the full core-only preprocessing rerun, with RNA placement corrected to snake order. Invariant-gene selection, Top2000 selection, scaling, within-cancer scaling, and correlation-based hierarchical layout use outer-training patients (`core` plus `validation`). Corrected Breslow Cox-score weights use core patients and outcomes only. Outer-test patients enter none of these fitted quantities. All three channels use the same snake layout: globally standardized expression, within-cancer standardized expression, and globally standardized expression multiplied by the Cox-score weight. Unseen cancer types use the outer-training global statistics for the second channel. The output directory must be new; it receives `preprocessing.npz`, `images.npz`, `features.npz`, and `cohort.csv`. The feature archive retains the standardized measured targets before image layout.
 
 Saved parameters can be applied to another cohort without refitting:
 

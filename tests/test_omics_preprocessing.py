@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from omnit2i.preprocessing.cnv_t2i import cox_score_z, snake_pixel_indices
-from omnit2i.preprocessing.omics import fit_omics_preprocessing, main, transform_omics
+from omnit2i.preprocessing.omics import fit_omics_preprocessing, main, transform_omics, transform_omics_features
 
 
 def inputs(modality):
@@ -85,6 +85,9 @@ def test_cli_output_matches_transform(modality, tmp_path, monkeypatch):
     with np.load(tmp_path / "output/images.npz", allow_pickle=False) as saved:
         np.testing.assert_allclose(saved["images"], transform_omics(matrix, cohort, artifact), atol=2e-6)
         np.testing.assert_array_equal(saved["patient"], cohort["patient"])
+    with np.load(tmp_path / "output/features.npz", allow_pickle=False) as saved:
+        np.testing.assert_allclose(saved["features"], transform_omics_features(matrix, cohort, artifact), atol=2e-6)
+        np.testing.assert_array_equal(saved["feature_ids"], artifact["feature_ids"])
     with pytest.raises(FileExistsError):
         main()
 

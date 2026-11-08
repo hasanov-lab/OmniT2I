@@ -82,7 +82,7 @@ def fit_rna_preprocessing(
     }
 
 
-def transform_rna(
+def transform_rna_features(
     expression: pd.DataFrame, cohort: pd.DataFrame, artifact: dict[str, np.ndarray]
 ) -> np.ndarray:
     """Apply saved parameters to samples in cohort order, without refitting.
@@ -101,6 +101,14 @@ def transform_rna(
     standardized = (
         (matrix.to_numpy(dtype=np.float32) - artifact["train_means"]) / artifact["train_stds"]
     ).astype(np.float32)
+    return standardized
+
+
+def transform_rna(
+    expression: pd.DataFrame, cohort: pd.DataFrame, artifact: dict[str, np.ndarray]
+) -> np.ndarray:
+    """Render the three manuscript channels from saved preprocessing parameters."""
+    standardized = transform_rna_features(expression, cohort, artifact)
     cancer = apply_cancer_standardization(
         standardized, cohort["cancer_type"], artifact["cancer_labels"],
         artifact["cancer_means"], artifact["cancer_stds"],
@@ -139,6 +147,12 @@ def main() -> None:
         cancer_type=cohort["cancer_type"].to_numpy(dtype=str),
         time=cohort["time"].to_numpy(float), event=cohort["event"].to_numpy(int),
         partition=cohort["partition"].to_numpy(dtype=str), feature_ids=artifact["feature_ids"],
+    )
+    np.savez_compressed(
+        args.output_dir / "features.npz", features=transform_rna_features(expression, cohort, artifact),
+        feature_ids=artifact["feature_ids"],
+        **{key: cohort[key].to_numpy(dtype=str if key in {"patient", "cancer_type", "partition"} else float)
+           for key in ("patient", "cancer_type", "time", "event", "partition")},
     )
     cohort.to_csv(args.output_dir / "cohort.csv", index=False)
     print(f"Prepared {len(cohort)} patients, {len(artifact['feature_ids'])} genes: {args.output_dir}")

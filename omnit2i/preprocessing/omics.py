@@ -96,7 +96,7 @@ def fit_omics_preprocessing(
     return artifact
 
 
-def transform_omics(matrix: pd.DataFrame, cohort: pd.DataFrame, artifact: dict[str, np.ndarray]) -> np.ndarray:
+def transform_omics_features(matrix: pd.DataFrame, cohort: pd.DataFrame, artifact: dict[str, np.ndarray]) -> np.ndarray:
     """Apply fitted parameters in cohort order; missing selected features raise an error."""
     values = _matrix(matrix, cohort["sample"].astype(str).tolist())
     positions = matrix.index.get_indexer(artifact["feature_ids"])
@@ -114,6 +114,12 @@ def transform_omics(matrix: pd.DataFrame, cohort: pd.DataFrame, artifact: dict[s
         standardized = rppa_t2i.transform_impute_standardize(values, artifact["train_medians"], artifact["train_means"], artifact["train_stds"])
     else:
         raise ValueError("Unknown artifact modality")
+    return standardized
+
+
+def transform_omics(matrix: pd.DataFrame, cohort: pd.DataFrame, artifact: dict[str, np.ndarray]) -> np.ndarray:
+    """Render the three manuscript channels from saved preprocessing parameters."""
+    standardized = transform_omics_features(matrix, cohort, artifact)
     cancer = cnv_t2i.apply_cancer_standardization(
         standardized, cohort["cancer_type"], artifact["cancer_labels"], artifact["cancer_means"], artifact["cancer_stds"], artifact["global_cancer_mean"], artifact["global_cancer_std"],
     )
@@ -144,6 +150,12 @@ def main() -> None:
     np.savez_compressed(
         args.output_dir / "images.npz", images=images, feature_ids=artifact["feature_ids"],
         **{key: cohort[key].to_numpy(dtype=str if key in {"patient", "sample", "cancer_type", "partition"} else float) for key in ("patient", "sample", "cancer_type", "time", "event", "partition")},
+    )
+    np.savez_compressed(
+        args.output_dir / "features.npz", features=transform_omics_features(matrix, cohort, artifact),
+        feature_ids=artifact["feature_ids"],
+        **{key: cohort[key].to_numpy(dtype=str if key in {"patient", "cancer_type", "partition"} else float)
+           for key in ("patient", "cancer_type", "time", "event", "partition")},
     )
     cohort.to_csv(args.output_dir / "cohort.csv", index=False)
     print(f"Prepared {len(cohort)} {args.modality} patients, {len(artifact['feature_ids'])} features: {args.output_dir}")

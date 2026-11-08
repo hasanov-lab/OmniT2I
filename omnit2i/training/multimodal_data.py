@@ -63,14 +63,21 @@ def load_multimodal_data(
         represented = availability[cohort["partition"].eq(partition)].any(axis=0)
         if not represented.all():
             raise ValueError(f"The {partition} partition must include an observation of every modality")
-    if he_standardization is None:
-        train = cohort.iloc[master_positions[4]]["partition"].ne("test").to_numpy()
-        mean = inputs[4][train].mean(axis=0, dtype=np.float64).astype(np.float32)
-        std = inputs[4][train].std(axis=0, dtype=np.float64).astype(np.float32)
-        he_standardization = {"mean": mean, "std": np.where(std < 1e-6, 1.0, std).astype(np.float32), "clip": he_clip}
-    mean, std = np.asarray(he_standardization["mean"]), np.asarray(he_standardization["std"])
-    clip = float(he_standardization["clip"])
+    train = cohort.iloc[master_positions[4]]["partition"].ne("test").to_numpy()
+    inputs[4], he_standardization = standardize_he_embeddings(inputs[4], train, he_clip, he_standardization)
+    return MultimodalData(cohort, inputs, local_lookup, master_positions, availability, he_standardization)
+
+
+def standardize_he_embeddings(values, outer_training, clip=8.0, parameters=None):
+    """Share the manuscript outer-training H&E transform between inputs and targets."""
+    if not np.isfinite(clip) or clip <= 0:
+        raise ValueError("H&E standardization clip must be finite and positive")
+    if parameters is None:
+        mean = values[outer_training].mean(axis=0, dtype=np.float64).astype(np.float32)
+        std = values[outer_training].std(axis=0, dtype=np.float64).astype(np.float32)
+        parameters = {"mean": mean, "std": np.where(std < 1e-6, 1.0, std).astype(np.float32), "clip": clip}
+    mean, std = np.asarray(parameters["mean"]), np.asarray(parameters["std"])
+    clip = float(parameters["clip"])
     if mean.shape != (1536,) or std.shape != (1536,) or not np.isfinite(mean).all() or not np.isfinite(std).all() or (std <= 0).any() or not np.isfinite(clip) or clip <= 0:
         raise ValueError("Invalid saved H&E standardization parameters")
-    inputs[4] = np.clip((inputs[4] - mean) / std, -clip, clip).astype(np.float32)
-    return MultimodalData(cohort, inputs, local_lookup, master_positions, availability, he_standardization)
+    return np.clip((values - mean) / std, -clip, clip).astype(np.float32), parameters

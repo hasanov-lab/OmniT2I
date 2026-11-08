@@ -8,6 +8,7 @@ import sys
 import numpy as np
 import pandas as pd
 from omnit2i.models import MODALITIES
+from omnit2i.preprocessing.splits import build_shared_cohort
 
 
 def main() -> None:
@@ -20,13 +21,14 @@ def main() -> None:
         "patient": [f"synthetic_p{i}" for i in range(20)],
         "sample": [f"synthetic_s{i}" for i in range(20)],
         "cancer_type": ["A", "B"] * 10, "time": np.arange(1, 21), "event": [1] * 20,
-        "partition": ["core"] * 10 + ["validation"] * 5 + ["test"] * 5,
+        "fold": np.arange(20) % 5,
     })
+    cohort = build_shared_cohort(cohort, fold=0, seed=101)
     cohort_path = args.output_dir / "cohort.csv"
     cohort.to_csv(cohort_path, index=False)
     availability = np.ones((20, 5), dtype=bool)
     availability[np.arange(0, 20, 2), np.arange(0, 20, 2) % 5] = False
-    paths, checkpoints = [], []
+    paths, checkpoints, target_paths = [], [], []
     for index, name in enumerate(MODALITIES):
         rows = rng.permutation(np.flatnonzero(availability[:, index]))
         observed = cohort.iloc[rows]
@@ -56,22 +58,16 @@ def main() -> None:
             subprocess.run([sys.executable, "-m", "omnit2i.training.rna", "--modality", name, "--images", str(path), "--output-dir", str(trained), "--pretrain-epochs", "1", "--epochs", "2"], check=True)
             checkpoints += [f"--{name}-checkpoint", str(trained / "model.pt")]
         paths += [f"--{name}", str(path)]
+        target_paths += [f"--{name}", str(path if name == "he" else prepared / "features.npz")]
     subprocess.run([
         sys.executable, "-m", "omnit2i.training.fusion", "--cohort", str(cohort_path),
         *paths, *checkpoints, "--output-dir", str(args.output_dir / "fusion"), "--epochs", "2",
     ], check=True)
-    targets = {
-        "patient": cohort["patient"].to_numpy(str), "cancer_type": cohort["cancer_type"].to_numpy(str),
-        "partition": cohort["partition"].to_numpy(str), "availability": availability,
-        "modalities": np.array(MODALITIES), "target_scale": np.array(["synthetic_z"] * 5),
-    }
-    for index, name in enumerate(MODALITIES):
-        values = rng.normal(size=(len(cohort), 12 + index)).astype(np.float32)
-        values[~availability[:, index]] = np.nan
-        targets[f"{name}_target"] = values
-        targets[f"{name}_feature_ids"] = np.array([f"feature_{i}" for i in range(values.shape[1])])
     target_path = args.output_dir / "targets.npz"
-    np.savez_compressed(target_path, **targets)
+    subprocess.run([
+        sys.executable, "-m", "omnit2i.preprocessing.feature_targets", "--cohort", str(cohort_path),
+        *target_paths, "--output", str(target_path),
+    ], check=True)
     subprocess.run([
         sys.executable, "-m", "omnit2i.training.crossmodal", "--cohort", str(cohort_path),
         *paths, "--source-checkpoint", str(args.output_dir / "fusion" / "model.pt"),

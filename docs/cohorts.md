@@ -32,3 +32,20 @@ omnit2i-build-he-master --four-omics-master cohort/four_omics_master.csv \
 The metadata command queries GDC open TCGA slide metadata and writes manifests; it does not download slides. It reuses its cached metadata unless `--force-refresh` is supplied. Representative-slide selection prioritizes tumour/primary annotations and diagnostic slides before file size. For the final multislide workflow, include additional diagnostic slides using the patch and embedding commands in the main README; patient pooling weights slides equally.
 
 The final alignment command reads `case_id`, `n_patches`, and 1,536 `he_emb_*` columns. It checks patient uniqueness and clinical agreement, excludes nonpositive survival times, and preserves the four-omics master folds. It writes the five-modality master CSV, the H&E cohort view, aligned embeddings, feature names and a preparation summary. Original source files are listed in `omnit2i/preprocessing/cohort_provenance.tsv`.
+
+## Shared training partitions
+
+```bash
+omnit2i-split-cohort --master cohort/five_modal/rna_cnv_rppa_methylation_he_master_folds.csv --seed 101 --fold 0 --output-dir prepared/seed_101/fold0
+```
+
+Use the final master CSV produced by cohort assembly. The command writes `cohort.csv` plus an observed-patient cohort CSV for each modality. All inherit the same 80/20 core/validation split of outer-training patients, using seed `base_seed + fold * 1000`; the outer test fold stays separate. Use these observed-patient CSVs with the molecular preprocessing commands. Their `images.npz` and `features.npz` outputs contain the input images and measured feature targets, respectively.
+
+After preprocessing, place each modality's outputs under `PREPARED/rna/`, `cnv/`, `protein/` and `methylation/`, with frozen patient H&E embeddings at `PREPARED/he.npz`. Then run:
+
+```bash
+omnit2i-prepare-targets --cohort PREPARED/cohort.csv --rna PREPARED/rna/features.npz --cnv PREPARED/cnv/features.npz --protein PREPARED/protein/features.npz --methylation PREPARED/methylation/features.npz --he PREPARED/he.npz --output PREPARED/targets.npz
+omnit2i-train-fold --prepared-dir PREPARED --output-dir trained/seed_101/fold0 --seed 101 --fold 0 --device cuda
+```
+
+The training entry runs the existing four Stage A trainers, Stage B and Stage C in order, stopping on failure. Stage A uses `base_seed + fold * 100`; Stage B and C use `base_seed + fold * 1000`. Prepare and invoke each of seeds 101, 202, 303, 404 and 505 with folds 0–4 separately. Outputs must be new directories. Individual stage commands remain available for running stages separately.
