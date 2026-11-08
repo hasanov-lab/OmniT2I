@@ -79,6 +79,42 @@ Matrices use feature rows and sample columns, like RNA. Each modality's cohort c
 
 Protein and methylation use outer-training medians for missing values. CNV requires complete selected measurements; missing selected features are errors for every modality. Scaling, cancer references, and layout use core plus validation patients; corrected Cox-score weights use core only. The three snake channels and output filenames match RNA. The final CNV channels use standardized values, so the signed clipping bounds used by older channel alternatives are unnecessary here. Saved artifacts can be reapplied with `transform_omics` from `omnit2i.preprocessing.omics`; it reads the modality from the artifact.
 
+## Raw methylation processing
+
+The original 450K processing is available before the fold-specific preprocessing:
+
+```bash
+omnit2i-map-methylation --gtf gencode.v19.annotation.gtf.gz \
+  --probe-map illuminaMethyl450_hg19_GPL16304_TCGAlegacy --output-dir reference
+omnit2i-aggregate-methylation --matrix methylation450.beta.tsv.gz \
+  --mapping reference/methylation450k_probe_promoter_gene_map_main.tsv.gz \
+  --cohort primary_os_cohort.tsv --output-dir gene_level
+```
+
+Use hg19/GRCh37 GENCODE v19 and the matching Xena TCGA Legacy 450K probe map (`#id,chrom,chromStart,chromEnd`). The mapping uses strand-aware protein-coding transcript promoters from 1,500 bp upstream through 500 bp downstream of the TSS, deduplicates same-gene TSSs, and excludes probes that overlap more than one gene. Gene IDs have their annotation version removed. Aggregation retains genes with at least three unambiguous promoter probes and averages their observed beta values. Repeated sample columns (at most two) are merged probe-wise by the available mean before gene aggregation. Missing values remain missing.
+
+The cohort TSV must contain unique `patient` IDs and a `sample` column matching the raw matrix headers exactly. Supply the already selected primary-tumour cohort with valid overall survival; this command does not infer eligibility or choose between tumour aliquots. It preserves cohort order and writes a genes × patients `.npy` matrix, gene annotations, sample QC, and a processing summary. The input matrix is streamed from gzip.
+
+To pass the result to `omnit2i-prepare-omics`, convert its matrix and annotation to the documented TSV interface:
+
+```python
+from pathlib import Path
+import numpy as np
+import pandas as pd
+
+root = Path("gene_level")
+genes = pd.read_csv(root / "methylation_promoter_gene_features.tsv", sep="\t")
+samples = pd.read_csv(root / "methylation_promoter_gene_samples.tsv", sep="\t")
+pd.DataFrame(np.load(root / "methylation_promoter_gene_beta.npy"),
+             index=genes.gene_id, columns=samples["sample"]).to_csv(
+    root / "promoter_gene_beta.tsv.gz", sep="\t")
+mapping = pd.read_csv("reference/methylation450k_probe_promoter_gene_map_main.tsv.gz", sep="\t")
+mapping[["gene_id", "chrom"]].drop_duplicates().rename(
+    columns={"gene_id": "feature_id"}).to_csv(root / "chromosomes.tsv", sep="\t", index=False)
+```
+
+Use the same sample IDs in the methylation cohort CSV and retain its shared `core`, `validation`, and `test` partitions. Mapping and probe averaging use fixed genome annotations and no outcomes; subsequent feature selection and scaling retain the training scopes described above.
+
 ## Molecular pretraining and survival training (Stage A)
 
 ```bash
@@ -117,7 +153,7 @@ Supply the master cohort CSV described above and one NPZ per modality:
 
 Each archive contains only genuinely observed patients for that modality. Archive rows may have any order: the loader joins by patient ID, rejects duplicate or unknown patients and inconsistent partitions, and derives availability from membership. Every cohort patient needs at least one observed modality. The current backbone also requires every modality to be represented somewhere in each of the core and validation partitions.
 
-Molecular images must use the manuscript preprocessing: feature selection, imputation, scaling, and layouts fitted on outer-training patients; corrected C3 weights fitted on the shared core patients only. H&E inputs are frozen patient-level embeddings before fold standardization; this command fits their mean and standard deviation on observed outer-training patients and saves those parameters. H&E feature extraction and the CNV/protein/methylation raw-data commands are still being organized.
+Molecular images must use the manuscript preprocessing: feature selection, imputation, scaling, and layouts fitted on outer-training patients; corrected C3 weights fitted on the shared core patients only. H&E inputs are frozen patient-level embeddings before fold standardization; this command fits their mean and standard deviation on observed outer-training patients and saves those parameters. H&E feature extraction is still being organized.
 
 ```bash
 omnit2i-train-fusion --cohort cohort.csv \
@@ -186,7 +222,7 @@ Outputs are `predictions.tsv.gz` (30 rows per test patient, with raw and calibra
 
 ## Release status
 
-Upstream raw-data preparation (including methylation probe aggregation and H&E embedding extraction) and the remaining analysis/figure scripts are being prepared in stages. Molecular preprocessing, Stage A/B/C training, and frozen 30-subset evaluation are available for prepared matrices and embeddings. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
+H&E embedding extraction, cohort assembly, and the remaining analysis/figure scripts are being prepared in stages. Raw 450K promoter mapping and aggregation are available. Molecular preprocessing, Stage A/B/C training, and frozen 30-subset evaluation are available for prepared matrices and embeddings. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
 
 ## Development
 

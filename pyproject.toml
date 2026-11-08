@@ -13,6 +13,8 @@ authors = [{name = "Peng Li"}]
 dependencies = ["torch>=2.0", "numpy>=1.24", "pandas>=2.0", "scipy>=1.10"]
 
 [project.scripts]
+omnit2i-map-methylation = "omnit2i.preprocessing.methylation_map:main"
+omnit2i-aggregate-methylation = "omnit2i.preprocessing.methylation_aggregation:main"
 omnit2i-prepare-rna = "omnit2i.preprocessing.rna:main"
 omnit2i-prepare-omics = "omnit2i.preprocessing.omics:main"
 omnit2i-train-rna = "omnit2i.training.rna:main"
