@@ -25,7 +25,7 @@ The package provides model components, tests, and a synthetic example:
 - A target-conditioned translator with 20 directed source-to-target routes and target-specific feature decoders. The target is always excluded from its source mask.
 - A masked-image reconstruction decoder and the existing pooled-CNN and spatial/global encoder alternatives.
 
-The modality order is **RNA, CNV, protein, methylation, H&E**. The spatial encoders consume floating-point tensors shaped `[patients, 3, height, width]`: RNA/CNV/methylation use 45 × 45 images and protein uses 17 × 17 images. The H&E adapter consumes `[patients, 1536]` frozen embeddings. Encoders produce 96-dimensional representations; the H&E feature extractor itself is not included.
+The modality order is **RNA, CNV, protein, methylation, H&E**. The spatial encoders consume floating-point tensors shaped `[patients, 3, height, width]`: RNA/CNV/methylation use 45 × 45 images and protein uses 17 × 17 images. The H&E adapter consumes `[patients, 1536]` frozen embeddings. Encoders produce 96-dimensional representations; frozen GigaPath extraction and equal-slide patient pooling are provided as optional preprocessing commands.
 
 `SharedProjectionFusion` accepts a list of embeddings plus a `[patients, modalities]` availability mask. It supports mean or learned gated fusion over observed modalities; each patient must have at least one observed modality. Missing embedding slots should contain finite placeholders such as zeros. Risk outputs are relative Cox scores, not survival probabilities.
 
@@ -153,7 +153,7 @@ Supply the master cohort CSV described above and one NPZ per modality:
 
 Each archive contains only genuinely observed patients for that modality. Archive rows may have any order: the loader joins by patient ID, rejects duplicate or unknown patients and inconsistent partitions, and derives availability from membership. Every cohort patient needs at least one observed modality. The current backbone also requires every modality to be represented somewhere in each of the core and validation partitions.
 
-Molecular images must use the manuscript preprocessing: feature selection, imputation, scaling, and layouts fitted on outer-training patients; corrected C3 weights fitted on the shared core patients only. H&E inputs are frozen patient-level embeddings before fold standardization; this command fits their mean and standard deviation on observed outer-training patients and saves those parameters. H&E feature extraction is still being organized.
+Molecular images must use the manuscript preprocessing: feature selection, imputation, scaling, and layouts fitted on outer-training patients; corrected C3 weights fitted on the shared core patients only. H&E inputs are frozen patient-level embeddings before fold standardization; this command fits their mean and standard deviation on observed outer-training patients and saves those parameters. The optional H&E commands below prepare frozen embeddings.
 
 ```bash
 omnit2i-train-fusion --cohort cohort.csv \
@@ -203,6 +203,46 @@ The defaults preserve 40 warm-up epochs, up to 80 joint epochs, source dropout 0
 
 Outputs include `model.pt`, `frozen_fallback.pt` (the source survival model plus the best warm-up translator), `target_baselines.npz`, predictions, fusion weights, history, and options. Both checkpoints store constructor arguments and risk calibration. Feature decoder outputs are residuals: add the saved cancer-specific mean, or global mean for an unseen cancer, to recover the prepared target scale. The multimodal synthetic example above exercises this command after fusion training.
 
+## H&E preprocessing
+
+```bash
+pip install '.[he]'
+omnit2i-sample-he --table one_slide_per_patient.tsv --svs-root slides \
+  --outdir patches --report-dir reports
+omnit2i-embed-he --patch-table patches/full_he_64patch_bag_patch_table.tsv \
+  --outdir embeddings --device cuda
+```
+
+The initial slide table contains `case_id,file_name`. Download and select the diagnostic slides separately. The manuscript sampler takes up to 64 level-0 512 × 512 tissue patches per slide, resizes them to 128 × 128, and saves JPEGs. It uses a thumbnail tissue mask (HSV saturation >20, value >25 and <245, RGB standard deviation >4), a coarse tissue fraction of 0.45, and seed 123. The original random fallback fills short bags where tissue exists; the encoder subsequently retains patches with tissue fraction ≥0.40. GigaPath inputs are resized to 256, centre-cropped to 224, and ImageNet-normalized. The frozen tile encoder is loaded through `timm`; model access requires the provider's Hugging Face authorization. Weights are downloaded only when extraction is requested.
+
+The manuscript uses additional primary diagnostic slides where available:
+
+```bash
+omnit2i-sample-extra-he --target-table diagnostic_slides.tsv --svs-root slides \
+  --outdir extra_patches --start-index 0 --end-index 100 --part-id 000
+omnit2i-embed-extra-he --patch-table extra_patches/extra_he_64patch_part000_patch_table.tsv \
+  --output-dir extra_embeddings --device cuda
+omnit2i-pool-he --baseline-case-embeddings embeddings/full_he_gigapath_64patch_mean_case_mean_embeddings.tsv \
+  --extra-slide-embeddings extra_embeddings/extra_slide_mean_embeddings.tsv \
+  --cohort he_cohort.csv --target-table diagnostic_slides.tsv --output-dir he_patient
+```
+
+The additional-slide target TSV contains `case_id,file_id,file_name,cancer_type,OS,OS.time,already_present`; mark the original slide as `already_present=1` and additional slides as 0. Sampling preserves the original deterministic per-slide seed and collision-free patient/file directories. Combine disjoint part tables before embedding when sampling multiple ranges. `omnit2i-pool-he` requires one baseline embedding per cohort patient, matching 1,536 feature columns, and the expected number of diagnostic slides per patient. The cohort CSV needs a `patient` column.
+
+Pooling first averages retained tile embeddings within each slide, then gives **each slide equal weight within its patient**, irrespective of tile counts. It writes `multislide_patient_mean_embeddings.tsv`, the slide-level table, and a summary. To provide the frozen patient embeddings to Stage B/C:
+
+```python
+import numpy as np
+import pandas as pd
+
+he = pd.read_csv("he_patient/multislide_patient_mean_embeddings.tsv", sep="\t")
+columns = [c for c in he if c.startswith("he_emb_")]
+np.savez_compressed("he.npz", patient=he.case_id.to_numpy(dtype=str),
+                    embeddings=he[columns].to_numpy(dtype=np.float32))
+```
+
+Use only patients eligible for the master survival cohort. Stage B fits embedding standardization on observed outer-training patients. Slide selection, patch sampling, frozen encoding, and pooling use no survival outcomes. Synthetic tests exercise sampling, filtering, encoder plumbing, and equal-slide weighting; they do not validate the pretrained GigaPath model or reproduce its scientific performance.
+
 ## Frozen subset evaluation
 
 ```bash
@@ -222,7 +262,7 @@ Outputs are `predictions.tsv.gz` (30 rows per test patient, with raw and calibra
 
 ## Release status
 
-H&E embedding extraction, cohort assembly, and the remaining analysis/figure scripts are being prepared in stages. Raw 450K promoter mapping and aggregation are available. Molecular preprocessing, Stage A/B/C training, and frozen 30-subset evaluation are available for prepared matrices and embeddings. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
+Cohort assembly and the remaining analysis/figure scripts are being prepared in stages. Optional frozen H&E extraction and multislide pooling are available. Raw 450K promoter mapping and aggregation are available. Molecular preprocessing, Stage A/B/C training, and frozen 30-subset evaluation are available for prepared matrices and embeddings. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
 
 ## Development
 

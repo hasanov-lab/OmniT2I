@@ -13,6 +13,11 @@ authors = [{name = "Peng Li"}]
 dependencies = ["torch>=2.0", "numpy>=1.24", "pandas>=2.0", "scipy>=1.10"]
 
 [project.scripts]
+omnit2i-sample-he = "omnit2i.preprocessing.he_patches:main"
+omnit2i-sample-extra-he = "omnit2i.preprocessing.he_extra_patches:main"
+omnit2i-embed-he = "omnit2i.preprocessing.he_case_embeddings:main"
+omnit2i-embed-extra-he = "omnit2i.preprocessing.he_slide_embeddings:main"
+omnit2i-pool-he = "omnit2i.preprocessing.he_multislide:main"
 omnit2i-map-methylation = "omnit2i.preprocessing.methylation_map:main"
 omnit2i-aggregate-methylation = "omnit2i.preprocessing.methylation_aggregation:main"
 omnit2i-prepare-rna = "omnit2i.preprocessing.rna:main"
@@ -24,6 +29,7 @@ omnit2i-train-joint = "omnit2i.training.crossmodal:main"
 omnit2i-evaluate-subsets = "omnit2i.evaluation:main"
 
 [project.optional-dependencies]
+he = ["Pillow>=9", "tiffslide>=2", "torchvision>=0.15", "timm>=1.0.3", "tqdm>=4"]
 test = ["pytest>=7"]
 training = ["scikit-survival>=0.25"]
 
