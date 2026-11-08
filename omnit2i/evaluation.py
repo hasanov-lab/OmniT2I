@@ -1,4 +1,4 @@
-"""Frozen complete-case evaluation of 30 observed modality subsets."""
+"""Frozen complete-case evaluation of measured subsets and virtual routes."""
 
 import argparse
 from itertools import combinations
@@ -19,6 +19,24 @@ from omnit2i.training.multimodal_data import load_multimodal_data
 CONDITIONS = ("source_only", "cancer_mean", "virtual", "measured")
 
 
+def _latent_baselines(projected, cohort, availability):
+    core = cohort["partition"].eq("core").to_numpy()
+    cancers = cohort["cancer_type"].to_numpy(str)
+    means = []
+    for target in range(5):
+        observed = core & availability[:, target]
+        if not observed.any():
+            raise ValueError(f"Core has no observed {MODALITIES[target]} patients")
+        values = projected[:, target].cpu().numpy()
+        labels = np.unique(cancers[observed])
+        means.append({
+            "global_mean": values[observed].mean(axis=0).astype(np.float32),
+            "cancer_labels": labels,
+            "cancer_means": np.stack([values[observed & (cancers == label)].mean(axis=0) for label in labels]).astype(np.float32),
+        })
+    return means
+
+
 @torch.no_grad()
 def evaluate_subsets(model, projected, cohort, availability, targets, feature_baselines):
     """Compare four conditions on identical complete-case held-out patients.
@@ -32,7 +50,6 @@ def evaluate_subsets(model, projected, cohort, availability, targets, feature_ba
         raise ValueError("Projected embeddings and availability must match the five-modality cohort")
     if not torch.isfinite(projected).all():
         raise ValueError("Projected embeddings must be finite")
-    core = cohort["partition"].eq("core").to_numpy()
     validation = cohort["partition"].eq("validation").to_numpy()
     test = cohort["partition"].eq("test").to_numpy()
     rows = np.flatnonzero(availability.all(axis=1) & (validation | test))
@@ -42,18 +59,7 @@ def evaluate_subsets(model, projected, cohort, availability, targets, feature_ba
     cancers = cohort["cancer_type"].to_numpy(str)
     selected = projected[rows]
     all_available = torch.ones((len(rows), 5), dtype=torch.bool, device=projected.device)
-    means = []
-    for target in range(5):
-        observed = core & availability[:, target]
-        if not observed.any():
-            raise ValueError(f"Core has no observed {MODALITIES[target]} patients")
-        values = projected[:, target].cpu().numpy()
-        labels = np.unique(cancers[observed])
-        means.append({
-            "global_mean": values[observed].mean(axis=0).astype(np.float32),
-            "cancer_labels": labels,
-            "cancer_means": np.stack([values[observed & (cancers == label)].mean(axis=0) for label in labels]).astype(np.float32),
-        })
+    means = _latent_baselines(projected, cohort, availability)
 
     def risk(values, mask):
         return fused_risk_from_projected(model.survival.fusion, values, mask)[0].cpu().numpy().astype(np.float32)
@@ -92,6 +98,67 @@ def evaluate_subsets(model, projected, cohort, availability, targets, feature_ba
                 output[f"calibration_n_{condition}"] = calibration["n_reference"]
             predictions.append(output)
     return pd.concat(predictions, ignore_index=True), pd.DataFrame(metrics)
+
+
+@torch.no_grad()
+def evaluate_routes(model, projected, cohort, availability, targets, feature_baselines):
+    """Also return all 31 measured subsets and 180 selective virtual routes.
+
+    Preserve the historical all-five measured condition, and add the manuscript's
+    source-plus-selected-target measured reference explicitly.
+    """
+    predictions, metrics = evaluate_subsets(model, projected, cohort, availability, targets, feature_baselines)
+    metadata = [column for column in predictions if not column.startswith(("risk_", "calibration_"))]
+    measured = predictions[metadata + ["risk_source_only_raw", "risk_source_only", "calibration_n_source_only"]].rename(columns={
+        "risk_source_only_raw": "risk_score_raw", "risk_source_only": "risk_score",
+        "calibration_n_source_only": "calibration_n",
+    })
+    full = predictions.loc[predictions.source_subset.eq(MODALITIES[0]), metadata + ["risk_measured_raw", "risk_measured", "calibration_n_measured"]].copy()
+    full["source_subset"], full["observed_count"], full["missing_modalities"] = "+".join(MODALITIES), 5, ""
+    full = full.rename(columns={"risk_measured_raw": "risk_score_raw", "risk_measured": "risk_score", "calibration_n_measured": "calibration_n"})
+    measured = pd.concat([measured, full], ignore_index=True)
+    reference = measured.set_index(["source_subset", "patient"])
+    validation = cohort.partition.eq("validation").to_numpy()
+    test = cohort.partition.eq("test").to_numpy()
+    rows = np.flatnonzero(availability.all(axis=1) & (validation | test))
+    val_local, test_local = validation[rows], test[rows]
+    selected = projected[rows]
+    cancers = cohort.cancer_type.to_numpy(str)[rows]
+    means = _latent_baselines(projected, cohort, availability)
+    frames = []
+    for source_name, prior in predictions.groupby("source_subset", sort=False):
+        source = [MODALITIES.index(name) for name in source_name.split("+")]
+        missing = [index for index in range(5) if index not in source]
+        source_mask = torch.zeros(selected.shape[:2], dtype=torch.bool, device=projected.device)
+        source_mask[:, source] = True
+        virtual, mean = selected.clone(), selected.clone()
+        for target in missing:
+            virtual[:, target] = model.translator(selected, source_mask, target)["latent_prediction"]
+            mean[:, target] = torch.from_numpy(_baseline_for_cancers(means[target], cancers)).to(projected.device)
+        for count in range(1, len(missing) + 1):
+            for chosen in combinations(missing, count):
+                active = source_mask.clone()
+                active[:, list(chosen)] = True
+                output = prior.copy()
+                output["virtual_targets"] = "+".join(MODALITIES[index] for index in chosen)
+                output["virtual_count"], output["final_count"] = count, len(source) + count
+                output["remaining_unfilled"] = "+".join(MODALITIES[index] for index in missing if index not in chosen)
+                subset = "+".join(name for index, name in enumerate(MODALITIES) if index in source or index in chosen)
+                output["measured_subset"] = subset
+                matched = reference.loc[[(subset, patient) for patient in output.patient]]
+                output["risk_measured_matched_raw"] = matched.risk_score_raw.to_numpy()
+                output["risk_measured_matched"] = matched.risk_score.to_numpy()
+                output["calibration_n_measured_matched"] = matched.calibration_n.to_numpy()
+                # Full-fill routes reuse their original risks exactly.
+                if tuple(chosen) != tuple(missing):
+                    for condition, values in (("virtual", virtual), ("cancer_mean", mean)):
+                        risk = fused_risk_from_projected(model.survival.fusion, values, active)[0].cpu().numpy().astype(np.float32)
+                        calibration = fit_risk_calibration(risk, val_local)
+                        output[f"risk_{condition}_raw"] = risk[test_local]
+                        output[f"risk_{condition}"] = apply_risk_calibration(risk, calibration)[test_local]
+                        output[f"calibration_n_{condition}"] = calibration["n_reference"]
+                frames.append(output)
+    return predictions, metrics, measured, pd.concat(frames, ignore_index=True)
 
 
 def load_evaluation_targets(target_path, baseline_path, data, output_dims):
@@ -151,13 +218,15 @@ def main():
     with torch.no_grad():
         embeddings = extract_embeddings(model.survival, data, args.encoder_chunk_size, args.device)
         projected = torch.stack([model.survival.fusion.shared_projection(values) for values in embeddings], dim=1)
-    predictions, metrics = evaluate_subsets(model, projected, data.cohort, data.availability, targets, baselines)
-    for frame in (predictions, metrics):
+    predictions, metrics, measured, selective = evaluate_routes(model, projected, data.cohort, data.availability, targets, baselines)
+    for frame in (predictions, metrics, measured, selective):
         frame["fold"], frame["seed"] = saved["fold"], saved["seed"]
     args.output_dir.mkdir(parents=True, exist_ok=False)
     predictions.to_csv(args.output_dir / "predictions.tsv.gz", sep="\t", index=False)
     metrics.to_csv(args.output_dir / "feature_metrics.tsv.gz", sep="\t", index=False)
-    print(f"Evaluated 30 source subsets, {len(predictions)} predictions and {len(metrics)} reconstruction summaries: {args.output_dir}")
+    measured.to_csv(args.output_dir / "measured_predictions.tsv.gz", sep="\t", index=False)
+    selective.to_csv(args.output_dir / "selective_predictions.tsv.gz", sep="\t", index=False)
+    print(f"Evaluated 31 measured subsets, 180 selective routes and {len(metrics)} reconstruction summaries: {args.output_dir}")
 
 
 if __name__ == "__main__":

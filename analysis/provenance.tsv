@@ -1,4 +1,5 @@
 release_script	original_script
+omnit2i/evaluation.py	runs/omnit2i_core_c3_evaluation_v1_2026-10-12/code/evaluate.py; runs/omnit2i_virtual_selective_180_v1_2026-09-02/code/evaluate_selective.py; source-plus-target measured reference from figures/outputs/plot_code/v2_v15style/Figure4/prepare_sources.py
 omnit2i/analysis/ipcw.py	runs/omnit2i_oof_ipcw_metrics_v1_2026-08-21/code/evaluate_oof_ipcw_metrics.py
 bootstrap_survival.R	figures/outputs/plot_code/Figure3_95CI/compute_bootstrap_95ci.R
 bootstrap_survival.R (current point estimates)	figures/outputs/plot_code/v2_v15style/Figure3/prepare_source_data.R
