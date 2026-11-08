@@ -1,0 +1,6 @@
+kind	x_emu	y_emu	cx_emu	cy_emu	panel	text
+image	6249039	992560	604867	864096	ExtendedData3_shared_legend.png	
+image	3169087	96456	3114880	3128352	ExtendedData3_panel_b.png	
+image	54207	96456	3114880	3128352	ExtendedData3_panel_a.png	
+text	-73809	-31560	256032	256032		a
+text	3041071	-31560	256032	256032		b

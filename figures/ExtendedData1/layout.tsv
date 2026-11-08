@@ -1,0 +1,5 @@
+kind	x_emu	y_emu	cx_emu	cy_emu	panel	text
+image	712676	56456	5380620	3266805	ExtendedData1_panel_a.png	
+image	712676	3400824	5380620	3266805	ExtendedData1_panel_b.png	
+text	584660	-74987	256032	256032		a
+text	584660	3273694	256032	256032		b
