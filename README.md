@@ -67,7 +67,17 @@ with np.load("outputs/rna/preprocessing.npz", allow_pickle=False) as saved:
 images = transform_rna(expression, cohort, artifact)
 ```
 
-The `omnit2i.preprocessing` modules also provide the extracted CNV scaling, protein filtering/imputation, and promoter-gene methylation beta-to-M conversion, filtering, and standardization functions. Their raw-data preparation commands are still being organized. The methylation functions operate on promoter-gene profiles, rather than raw probe-level arrays.
+## Other molecular preprocessing
+
+```bash
+omnit2i-prepare-omics --modality cnv --matrix cnv.tsv.gz --cohort cnv_cohort.csv --output-dir outputs/cnv
+omnit2i-prepare-omics --modality protein --matrix rppa.tsv.gz --cohort protein_cohort.csv --output-dir outputs/protein
+omnit2i-prepare-omics --modality methylation --matrix promoter_gene_beta.tsv.gz --chromosomes chromosomes.tsv --cohort methylation_cohort.csv --output-dir outputs/methylation
+```
+
+Matrices use feature rows and sample columns, like RNA. Each modality's cohort contains its observed patients only, retaining their partitions from the shared master cohort. All three partitions must be present. CNV uses the supplied gene-level scale and selects Top2000 by outer-training variance, breaking ties by feature ID. Protein retains RPPA features with at most 20% outer-training missingness and variance greater than 1e-8 after median imputation; its canvas is 17 × 17. Methylation takes **already aggregated promoter-gene beta values**, converts them to M values with epsilon 1e-5, excludes chrY, filters at 1% outer-training missingness and variance greater than 1e-8, then selects Top2000. Its chromosome TSV requires `feature_id` and `chrom` columns, with annotations such as `chr1` and `chrY`. CNV and methylation use 45 × 45 canvases; `--top-n` can reduce their feature count.
+
+Protein and methylation use outer-training medians for missing values. CNV requires complete selected measurements; missing selected features are errors for every modality. Scaling, cancer references, and layout use core plus validation patients; corrected Cox-score weights use core only. The three snake channels and output filenames match RNA. The final CNV channels use standardized values, so the signed clipping bounds used by older channel alternatives are unnecessary here. Saved artifacts can be reapplied with `transform_omics` from `omnit2i.preprocessing.omics`; it reads the modality from the artifact.
 
 ## RNA training
 
