@@ -14,9 +14,11 @@ cd OmniT2I
 pip install .
 ```
 
+For the dependency versions used in the release checks, use `pip install -r requirements.txt` from the checkout instead. `pyproject.toml` declares the package dependencies; `requirements.txt` selects the tested versions and installs the package too.
+
 ## Model components
 
-This first code release provides model components, tests, and a synthetic example:
+The package provides model components, tests, and a synthetic example:
 
 - Spatial CNN encoders for RNA, CNV, methylation, and RPPA/protein table-to-image inputs.
 - An adapter for frozen H&E embeddings, shared-projection fusion with availability masks, and Cox risk heads.
@@ -41,9 +43,35 @@ python -m pytest -q
 
 The example runs forward and backward passes on synthetic inputs with randomly initialized models. It demonstrates the component interfaces; its objective and predictions have no scientific or clinical interpretation.
 
+## RNA preprocessing
+
+```bash
+omnit2i-prepare-rna --expression expression.tsv.gz --cohort cohort.csv --output-dir outputs/rna
+```
+
+The expression TSV has gene IDs in its first column and sample IDs in the remaining column headers. Supply expression on the intended upstream scale; the command does not log-transform raw counts. Gene and sample IDs must be unique, and the selected and invariant genes must have finite values for every requested sample. Missing required genes raise an error.
+
+The cohort CSV contains `patient,sample,cancer_type,time,event,partition`. Each row is one unique patient and sample; `partition` is `core`, `validation`, or `test`, `time` is positive follow-up time in a consistent unit, and `event` is 1 for an observed event and 0 for censoring. Supply the same patient partitions to all modalities. The command preserves those partitions and does not generate a new split.
+
+Invariant-gene selection, Top2000 selection, scaling, within-cancer scaling, Breslow Cox-score weights, and correlation-based hierarchical layout are fitted on core patients only. All three channels use the snake layout: globally standardized expression, within-cancer standardized expression, and globally standardized expression multiplied by the Cox-score weight. Unseen cancer types use the core global statistics for the second channel. The output directory must be new; it receives `preprocessing.npz`, `images.npz`, and `cohort.csv`.
+
+Saved parameters can be applied to another cohort without refitting:
+
+```python
+import numpy as np
+from omnit2i.preprocessing.rna import transform_rna
+
+with np.load("outputs/rna/preprocessing.npz", allow_pickle=False) as saved:
+    artifact = dict(saved)
+# expression: gene x sample DataFrame; cohort: sample and cancer_type columns.
+images = transform_rna(expression, cohort, artifact)
+```
+
+The `omnit2i.preprocessing` modules also provide the extracted CNV scaling, protein filtering/imputation, and promoter-gene methylation beta-to-M conversion, filtering, and standardization functions. Their raw-data preparation commands are still being organized. The methylation functions operate on promoter-gene profiles, rather than raw probe-level arrays.
+
 ## Release status
 
-Data preprocessing, training workflows, and evaluation scripts are being prepared for subsequent releases. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
+Multimodal data preparation, training workflows, and evaluation scripts are being prepared in stages. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
 
 ## Development
 

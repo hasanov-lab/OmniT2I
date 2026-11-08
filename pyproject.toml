@@ -10,7 +10,10 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {file = "LICENSE"}
 authors = [{name = "Peng Li"}]
-dependencies = ["torch>=2.0"]
+dependencies = ["torch>=2.0", "numpy>=1.24", "pandas>=2.0", "scipy>=1.10"]
+
+[project.scripts]
+omnit2i-prepare-rna = "omnit2i.preprocessing.rna:main"
 
 [project.optional-dependencies]
 test = ["pytest>=7"]

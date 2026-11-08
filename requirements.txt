@@ -1,0 +1,7 @@
+# Runtime versions used for the CPU release checks.
+# Install a hardware-appropriate PyTorch build first when using a GPU.
+torch==2.4.1
+numpy==2.2.6
+pandas==2.3.3
+scipy==1.15.2
+.
