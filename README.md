@@ -43,6 +43,10 @@ python -m pytest -q
 
 The example runs forward and backward passes on synthetic inputs with randomly initialized models. It demonstrates the component interfaces; its objective and predictions have no scientific or clinical interpretation.
 
+## Cohort assembly
+
+The [raw-table and cohort commands](docs/cohorts.md) select primary-tumour OS cohorts, preserve the established outer folds, and assemble the five-modality master table. They also provide the cached GDC slide-metadata query.
+
 ## RNA preprocessing
 
 ```bash
@@ -262,7 +266,7 @@ Outputs are `predictions.tsv.gz` (30 rows per test patient, with raw and calibra
 
 ## Release status
 
-Figures 2–6 and Extended Data Figures 1–3 can be rendered from the manuscript Source Data with the [R figure scripts](figures/README.md). Cohort assembly and the remaining analysis scripts are being prepared in stages. Optional frozen H&E extraction and multislide pooling are available. Raw 450K promoter mapping and aggregation are available. Molecular preprocessing, Stage A/B/C training, and frozen 30-subset evaluation are available for prepared matrices and embeddings. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
+Figures 2–6 and Extended Data Figures 1–3 can be rendered from the manuscript Source Data with the [R figure scripts](figures/README.md). Cohort assembly from raw matrix headers and clinical tables is available. The remaining analysis scripts are being prepared in stages. Optional frozen H&E extraction and multislide pooling are available. Raw 450K promoter mapping and aggregation are available. Molecular preprocessing, Stage A/B/C training, and frozen 30-subset evaluation are available for prepared matrices and embeddings. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
 
 ## Development
 
