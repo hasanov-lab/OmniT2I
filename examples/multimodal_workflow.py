@@ -1,4 +1,4 @@
-"""Exercise fusion and joint training with synthetic inputs and random checkpoints."""
+"""Exercise molecular preprocessing, Stage A, fusion, and joint training on synthetic inputs."""
 
 import argparse
 from pathlib import Path
@@ -7,9 +7,7 @@ import sys
 
 import numpy as np
 import pandas as pd
-import torch
-
-from omnit2i.models import MODALITIES, CNNSpatialProjectorEncoder
+from omnit2i.models import MODALITIES
 
 
 def main() -> None:
@@ -31,18 +29,33 @@ def main() -> None:
     paths, checkpoints = [], []
     for index, name in enumerate(MODALITIES):
         rows = rng.permutation(np.flatnonzero(availability[:, index]))
-        grid = 17 if name == "protein" else 45
-        shape = (1536,) if name == "he" else (3, grid, grid)
-        values = rng.normal(size=(len(rows), *shape)).astype(np.float32)
-        path = args.output_dir / f"{name}.npz"
-        np.savez_compressed(path, patient=cohort.iloc[rows]["patient"].to_numpy(str), partition=cohort.iloc[rows]["partition"].to_numpy(str), **{"embeddings" if name == "he" else "images": values})
+        observed = cohort.iloc[rows]
+        if name == "he":
+            path = args.output_dir / "he.npz"
+            np.savez_compressed(path, patient=observed["patient"].to_numpy(str), embeddings=rng.normal(size=(len(rows), 1536)).astype(np.float32))
+        else:
+            matrix = pd.DataFrame(rng.normal(size=(80, len(rows))).astype(np.float32), index=[f"gene{i}" for i in range(80)], columns=observed["sample"])
+            if name == "methylation":
+                matrix = 1 / (1 + np.exp(-matrix))
+            matrix_path = args.output_dir / f"{name}.tsv.gz"
+            matrix.to_csv(matrix_path, sep="\t")
+            observed_path = args.output_dir / f"{name}_cohort.csv"
+            observed.to_csv(observed_path, index=False)
+            prepared = args.output_dir / f"{name}_prepared"
+            if name == "rna":
+                prepare = ["omnit2i.preprocessing.rna", "--expression", str(matrix_path), "--invariant-per-bin", "2"]
+            else:
+                prepare = ["omnit2i.preprocessing.omics", "--modality", name, "--matrix", str(matrix_path)]
+                if name == "methylation":
+                    chrom_path = args.output_dir / "chromosomes.tsv"
+                    pd.DataFrame({"feature_id": matrix.index, "chrom": "chr1"}).to_csv(chrom_path, sep="\t", index=False)
+                    prepare += ["--chromosomes", str(chrom_path)]
+            subprocess.run([sys.executable, "-m", *prepare, "--cohort", str(observed_path), "--output-dir", str(prepared), "--top-n", "60"], check=True)
+            path = prepared / "images.npz"
+            trained = args.output_dir / f"{name}_trained"
+            subprocess.run([sys.executable, "-m", "omnit2i.training.rna", "--modality", name, "--images", str(path), "--output-dir", str(trained), "--pretrain-epochs", "1", "--epochs", "2"], check=True)
+            checkpoints += [f"--{name}-checkpoint", str(trained / "model.pt")]
         paths += [f"--{name}", str(path)]
-        if name != "he":
-            torch.manual_seed(10 + index)
-            encoder = CNNSpatialProjectorEncoder(grid_height=grid, grid_width=grid)
-            checkpoint = args.output_dir / f"{name}.pt"
-            torch.save({"model_state": {f"encoder.{key}": value for key, value in encoder.state_dict().items()}}, checkpoint)
-            checkpoints += [f"--{name}-checkpoint", str(checkpoint)]
     subprocess.run([
         sys.executable, "-m", "omnit2i.training.fusion", "--cohort", str(cohort_path),
         *paths, *checkpoints, "--output-dir", str(args.output_dir / "fusion"), "--epochs", "2",
@@ -65,7 +78,7 @@ def main() -> None:
         "--targets", str(target_path), "--output-dir", str(args.output_dir / "joint"),
         "--warmup-epochs", "1", "--joint-epochs", "1", "--validation-frequency", "1",
     ], check=True)
-    print("Synthetic fusion/joint workflow completed; random initial checkpoints are not pretrained models.")
+    print("Synthetic preprocessing and Stage A/B/C workflow completed; these models have no scientific interpretation.")
 
 
 if __name__ == "__main__":

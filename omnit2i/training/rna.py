@@ -1,4 +1,4 @@
-"""Masked spatial RNA pretraining followed by full-risk-set Cox training."""
+"""Masked spatial molecular pretraining followed by full-risk-set Cox training."""
 
 import argparse
 import json
@@ -24,14 +24,14 @@ def set_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
-def build_spatial_cox_model(seed: int, dropout: float, device: str = "cpu") -> CNVT2ICoxModel:
+def build_spatial_cox_model(seed: int, dropout: float, device: str = "cpu", *, grid_height: int = 45, grid_width: int = 45) -> CNVT2ICoxModel:
     """Preserve the production spatial encoder, common-head initialization, and RNG stream."""
     set_seed(seed)
     model = CNVT2ICoxModel(in_channels=3, dropout=dropout)
     cpu_state = torch.get_rng_state().clone()
     cuda_states = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else []
     set_seed(seed)
-    encoder = CNNSpatialProjectorEncoder()
+    encoder = CNNSpatialProjectorEncoder(grid_height=grid_height, grid_width=grid_width)
     encoder.trunk.load_state_dict(model.encoder.state_dict())
     model.encoder = encoder
     torch.set_rng_state(cpu_state)
@@ -104,13 +104,16 @@ def predict(model: CNVT2ICoxModel, images: np.ndarray, batch_size: int, device: 
     return np.concatenate(risks), np.concatenate(embeddings)
 
 
-def train_rna(images: np.ndarray, cohort: pd.DataFrame, n_features: int, args: argparse.Namespace) -> dict:
+def train_molecular(images: np.ndarray, cohort: pd.DataFrame, n_features: int, args: argparse.Namespace, *, modality: str = "rna") -> dict:
     """Fit the core partition and select the checkpoint using validation C-index."""
     cohort = validate_cohort(cohort)
-    if images.shape != (len(cohort), 3, 45, 45) or not np.isfinite(images).all():
-        raise ValueError("RNA images must be finite with shape [patients, 3, 45, 45]")
-    if not 1 <= n_features <= 2025:
-        raise ValueError("RNA feature count must lie between 1 and 2025")
+    if modality not in {"rna", "cnv", "protein", "methylation"}:
+        raise ValueError("Unknown molecular modality")
+    side = 17 if modality == "protein" else 45
+    if images.shape != (len(cohort), 3, side, side) or not np.isfinite(images).all():
+        raise ValueError(f"{modality} images must be finite with shape [patients, 3, {side}, {side}]")
+    if not 1 <= n_features <= side * side:
+        raise ValueError("Measured feature count must fit the image grid")
     if min(args.epochs, args.pretrain_epochs, args.patience, args.pretrain_batch_size, args.inference_batch_size) < 1:
         raise ValueError("Epoch counts, patience, and batch sizes must be positive")
     if not 0 < args.mask_fraction < 1 or not 0 <= args.dropout < 1:
@@ -126,7 +129,7 @@ def train_rna(images: np.ndarray, cohort: pd.DataFrame, n_features: int, args: a
     # Fail before fitting if validation cannot select a survival checkpoint.
     concordance_index_censored(val_event, val_time, np.zeros(validation.sum()))
     core_images = torch.from_numpy(images[core])
-    model = build_spatial_cox_model(args.seed, args.dropout, args.device)
+    model = build_spatial_cox_model(args.seed, args.dropout, args.device, grid_height=side, grid_width=side)
     autoencoder = MaskedRNAImageAutoencoder(model.encoder, n_features).to(args.device)
     set_seed(args.seed + 90_000)
     optimizer = torch.optim.AdamW(autoencoder.parameters(), lr=args.pretrain_lr, weight_decay=args.weight_decay)
@@ -148,7 +151,7 @@ def train_rna(images: np.ndarray, cohort: pd.DataFrame, n_features: int, args: a
         pretrain_history.append({"epoch": epoch, "masked_reconstruction_loss": float(np.mean(losses))})
     encoder_state = {key: value.detach().cpu().clone() for key, value in autoencoder.encoder.state_dict().items()}
     del autoencoder, optimizer
-    model = build_spatial_cox_model(args.seed, args.dropout, args.device)
+    model = build_spatial_cox_model(args.seed, args.dropout, args.device, grid_height=side, grid_width=side)
     model.encoder.load_state_dict(encoder_state)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     core_images = core_images.to(args.device)
@@ -181,15 +184,19 @@ def train_rna(images: np.ndarray, cohort: pd.DataFrame, n_features: int, args: a
     if not np.isfinite(risk).all() or not np.isfinite(std) or std < 1e-8:
         raise ValueError("Predictions are non-finite or validation risk scale is degenerate")
     return {
-        "checkpoint": {"model_state": best_state, "architecture": "cnn_spatial_projector", "dropout": args.dropout, "seed": args.seed, "best_epoch": best_epoch, "validation_c_index": best_score, "risk_mean": mean, "risk_std": std},
+        "checkpoint": {"model_state": best_state, "architecture": "cnn_spatial_projector", "modality": modality, "grid_height": side, "grid_width": side, "n_features": n_features, "dropout": args.dropout, "seed": args.seed, "best_epoch": best_epoch, "validation_c_index": best_score, "risk_mean": mean, "risk_std": std},
         "risk_raw": risk, "risk": (risk - mean) / std, "embeddings": embeddings,
         "pretraining_history": pd.DataFrame(pretrain_history), "history": pd.DataFrame(history),
     }
 
 
+train_rna = train_molecular
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--images", type=Path, required=True, help="images.npz from omnit2i-prepare-rna")
+    parser.add_argument("--modality", choices=("rna", "cnv", "protein", "methylation"), default="rna")
+    parser.add_argument("--images", type=Path, required=True, help="images.npz from omnit2i-prepare-rna or omnit2i-prepare-omics")
     parser.add_argument("--output-dir", type=Path, required=True, help="New output directory")
     parser.add_argument("--seed", type=int, default=101, help="Final training seed; supplied per fold/run")
     parser.add_argument("--device", default="cpu")
@@ -212,7 +219,7 @@ def main() -> None:
         feature_ids = saved["feature_ids"]
     if feature_ids.ndim != 1 or len(np.unique(feature_ids)) != len(feature_ids):
         raise ValueError("feature_ids must be a one-dimensional array of unique identifiers")
-    result = train_rna(images, cohort, len(feature_ids), args)
+    result = train_molecular(images, cohort, len(feature_ids), args, modality=args.modality)
     args.output_dir.mkdir(parents=True, exist_ok=False)
     torch.save(result["checkpoint"], args.output_dir / "model.pt")
     predictions = cohort.copy()
@@ -222,7 +229,7 @@ def main() -> None:
     result["pretraining_history"].to_csv(args.output_dir / "pretraining_history.csv", index=False)
     result["history"].to_csv(args.output_dir / "history.csv", index=False)
     (args.output_dir / "options.json").write_text(json.dumps(vars(args), default=str, indent=2) + "\n")
-    print(f"Saved RNA model and predictions: {args.output_dir}")
+    print(f"Saved {args.modality} model and predictions: {args.output_dir}")
 
 
 if __name__ == "__main__":

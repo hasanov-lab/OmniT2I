@@ -16,6 +16,7 @@ dependencies = ["torch>=2.0", "numpy>=1.24", "pandas>=2.0", "scipy>=1.10"]
 omnit2i-prepare-rna = "omnit2i.preprocessing.rna:main"
 omnit2i-prepare-omics = "omnit2i.preprocessing.omics:main"
 omnit2i-train-rna = "omnit2i.training.rna:main"
+omnit2i-train-molecular = "omnit2i.training.rna:main"
 omnit2i-train-fusion = "omnit2i.training.fusion:main"
 omnit2i-train-joint = "omnit2i.training.crossmodal:main"
 

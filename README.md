@@ -79,16 +79,19 @@ Matrices use feature rows and sample columns, like RNA. Each modality's cohort c
 
 Protein and methylation use outer-training medians for missing values. CNV requires complete selected measurements; missing selected features are errors for every modality. Scaling, cancer references, and layout use core plus validation patients; corrected Cox-score weights use core only. The three snake channels and output filenames match RNA. The final CNV channels use standardized values, so the signed clipping bounds used by older channel alternatives are unnecessary here. Saved artifacts can be reapplied with `transform_omics` from `omnit2i.preprocessing.omics`; it reads the modality from the artifact.
 
-## RNA training
+## Molecular pretraining and survival training (Stage A)
 
 ```bash
 pip install '.[training]'  # Included when installing requirements.txt.
 omnit2i-train-rna --images outputs/rna/images.npz --output-dir outputs/rna_training --seed 101 --device cuda
+omnit2i-train-molecular --modality cnv --images outputs/cnv/images.npz --output-dir outputs/cnv_training --seed 101 --device cuda
+omnit2i-train-molecular --modality protein --images outputs/protein/images.npz --output-dir outputs/protein_training --seed 101 --device cuda
+omnit2i-train-molecular --modality methylation --images outputs/methylation/images.npz --output-dir outputs/methylation_training --seed 101 --device cuda
 ```
 
-This command trains the spatial RNA encoder with masked reconstruction on core patients, then fits the encoder and Cox head on the entire core risk set. It handles tied follow-up times with Breslow denominators. Validation C-index selects the checkpoint; validation risk mean and standard deviation define the saved risk scaling. Test patients contribute to neither fitting nor checkpoint selection. Masking affects measured pixels only and preserves zero padding.
+These commands train independently learned spatial encoders with masked reconstruction on core patients, then fit each encoder and Cox head on the entire core risk set. Protein uses a 17 × 17 grid; the other three use 45 × 45. `omnit2i-train-rna` remains an alias with RNA as its default modality. Training handles tied follow-up times with Breslow denominators. Validation C-index selects the checkpoint; validation risk mean and standard deviation define the saved risk scaling. Test patients contribute to neither fitting nor checkpoint selection. Masking affects measured pixels only and preserves zero padding.
 
-Defaults are 80 pretraining epochs, up to 180 Cox epochs, patience 25, mask fraction 0.15, and AdamW learning rates 0.001 with weight decay 0.0001. The command defaults to CPU unless `--device` is supplied. `--seed` is the final training seed for the supplied partition; prepare each fold separately and pass its intended seed explicitly. CUDA runs need enough memory for a full core forward pass: the Cox risk set is not split into independent minibatch losses.
+Defaults are 80 pretraining epochs, up to 180 Cox epochs, patience 25, mask fraction 0.15, and AdamW learning rates 0.001 with weight decay 0.0001. The commands default to CPU unless `--device` is supplied. `--seed` is the final training seed for the supplied partition; prepare each fold separately and pass its intended seed explicitly. In manuscript Stage A runs this is `base_seed + fold * 100`; the supplied partitions still come from the shared master split, whose seed uses `base_seed + fold * 1000`. CUDA runs need enough memory for a full core forward pass: the Cox risk set is not split into independent minibatch losses.
 
 Outputs are `model.pt`, patient-level `predictions.csv`, `embeddings.npz`, training histories, and `options.json`. The checkpoint contains the selected model state and validation risk scaling. Retain its corresponding `preprocessing.npz` to transform new samples. Risk scores are relative Cox scores, not absolute survival probabilities.
 
@@ -125,15 +128,15 @@ omnit2i-train-fusion --cohort cohort.csv \
   --output-dir outputs/fusion --seed 101 --device cuda
 ```
 
-The four molecular checkpoints must contain the pretrained spatial encoder under `encoder.*` in `model_state` or `state_dict`. The RNA command above writes this format. Defaults follow the extracted trainer: gated fusion, modality dropout 0.30, auxiliary weight 0.25, alignment weight 1.0, encoder learning rate 0.0001, and fusion learning rate 0.001. `--fusion-mode mean` selects mean fusion. `--seed` is the final seed for this run.
+The four molecular checkpoints must contain the pretrained spatial encoder under `encoder.*` in `model_state` or `state_dict`. All Stage A commands above write this format. Checkpoints also record their modality, grid size, and feature count. Defaults follow the extracted trainer: gated fusion, modality dropout 0.30, auxiliary weight 0.25, alignment weight 1.0, encoder learning rate 0.0001, and fusion learning rate 0.001. `--fusion-mode mean` selects mean fusion. `--seed` is the final seed for this run.
 
-Outputs include the selected `model.pt`, patient-level predictions, fusion weights, history, and options. The checkpoint stores model constructor arguments, outer-training H&E scaling, and validation risk calibration. Output directories must be new. A short CPU example generates synthetic inputs and random encoder checkpoints:
+Outputs include the selected `model.pt`, patient-level predictions, fusion weights, history, and options. The checkpoint stores model constructor arguments, outer-training H&E scaling, and validation risk calibration. Output directories must be new. A short CPU example prepares synthetic molecular matrices, trains all four Stage A encoders, then runs Stage B and C:
 
 ```bash
 python examples/multimodal_workflow.py --output-dir outputs/synthetic_multimodal
 ```
 
-This example checks loading, alignment, fusion training, joint training, and serialization. Its random input checkpoints are substitutes for Stage A outputs solely for the software check.
+This example checks preprocessing, molecular pretraining, patient alignment, fusion training, joint training, and serialization. It uses synthetic measurements and shortened training schedules solely for the software check.
 
 ## Cross-modal joint training
 
@@ -166,7 +169,7 @@ Outputs include `model.pt`, `frozen_fallback.pt` (the source survival model plus
 
 ## Release status
 
-Multimodal raw-data preparation, the remaining molecular pretraining commands, and evaluation scripts are being prepared in stages. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
+Upstream raw-data preparation (including methylation probe aggregation and H&E embedding extraction) and evaluation scripts are being prepared in stages. Molecular preprocessing and Stage A/B/C training are available for prepared matrices and embeddings. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
 
 ## Development
 

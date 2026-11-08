@@ -14,8 +14,9 @@ from omnit2i.training.rna import (
 )
 
 
-def training_inputs():
-    images = np.random.default_rng(713).normal(size=(14, 3, 45, 45)).astype(np.float32)
+def training_inputs(modality="rna"):
+    side = 17 if modality == "protein" else 45
+    images = np.random.default_rng(713).normal(size=(14, 3, side, side)).astype(np.float32)
     cohort = pd.DataFrame({
         "patient": [f"p{i}" for i in range(14)], "sample": [f"s{i}" for i in range(14)],
         "cancer_type": ["A"] * 14, "time": np.arange(1, 15), "event": [1] * 14,
@@ -60,29 +61,32 @@ def test_masking_preserves_padding_and_historical_top2000_order():
         mask_measured_features(image, 0, 60)
 
 
-def test_training_ignores_test_values_and_outcomes_and_reloads_checkpoint():
-    images, cohort, args = training_inputs()
-    first = train_rna(images, cohort, 60, args)
+@pytest.mark.parametrize("modality", ["rna", "cnv", "protein", "methylation"])
+def test_training_ignores_test_values_and_outcomes_and_reloads_checkpoint(modality):
+    images, cohort, args = training_inputs(modality)
+    first = train_rna(images, cohort, 60, args, modality=modality)
     changed = images.copy()
     changed[-3:] *= 10
     changed_cohort = cohort.copy()
     changed_cohort.loc[11:, "time"] *= 10
     changed_cohort.loc[11:, "event"] = 0
-    second = train_rna(changed, changed_cohort, 60, args)
+    second = train_rna(changed, changed_cohort, 60, args, modality=modality)
     for key in first["checkpoint"]["model_state"]:
         torch.testing.assert_close(first["checkpoint"]["model_state"][key], second["checkpoint"]["model_state"][key], rtol=0, atol=0)
     assert first["checkpoint"]["best_epoch"] == second["checkpoint"]["best_epoch"]
     assert len(first["pretraining_history"]) == 1 and len(first["history"]) == 2
     np.testing.assert_allclose(first["risk"][8:11].mean(), 0, atol=1e-12)
     np.testing.assert_allclose(first["risk"][8:11].std(), 1, atol=1e-12)
-    model = build_spatial_cox_model(args.seed, args.dropout)
+    side = 17 if modality == "protein" else 45
+    model = build_spatial_cox_model(args.seed, args.dropout, grid_height=side, grid_width=side)
     model.load_state_dict(first["checkpoint"]["model_state"])
     replayed, _ = predict(model, images, args.inference_batch_size, args.device)
     np.testing.assert_array_equal(replayed, first["risk_raw"])
 
 
-def test_training_command_writes_reloadable_artifacts(tmp_path, monkeypatch):
-    images, cohort, _ = training_inputs()
+@pytest.mark.parametrize("modality", ["rna", "cnv", "protein", "methylation"])
+def test_training_command_writes_reloadable_artifacts(modality, tmp_path, monkeypatch):
+    images, cohort, _ = training_inputs(modality)
     inputs = tmp_path / "images.npz"
     np.savez_compressed(inputs, images=images, feature_ids=np.array([f"g{i}" for i in range(60)]), **{
         column: cohort[column].to_numpy(dtype=str if column not in ("time", "event") else float)
@@ -91,16 +95,18 @@ def test_training_command_writes_reloadable_artifacts(tmp_path, monkeypatch):
     output = tmp_path / "trained"
     monkeypatch.setattr("sys.argv", [
         "omnit2i-train-rna", "--images", str(inputs), "--output-dir", str(output),
+        "--modality", modality,
         "--pretrain-epochs", "1", "--epochs", "1",
     ])
     main()
     checkpoint = torch.load(output / "model.pt", map_location="cpu", weights_only=True)
     predictions = pd.read_csv(output / "predictions.csv")
-    model = build_spatial_cox_model(checkpoint["seed"], checkpoint["dropout"])
+    model = build_spatial_cox_model(checkpoint["seed"], checkpoint["dropout"], grid_height=checkpoint["grid_height"], grid_width=checkpoint["grid_width"])
     model.load_state_dict(checkpoint["model_state"])
     risk, _ = predict(model, images, 512, "cpu")
     np.testing.assert_allclose(predictions["risk_raw"], risk)
     assert set(predictions["partition"]) == {"core", "validation", "test"}
     assert checkpoint["best_epoch"] == 1
+    assert checkpoint["modality"] == modality and checkpoint["n_features"] == 60
     with pytest.raises(FileExistsError):
         main()
