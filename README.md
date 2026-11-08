@@ -90,9 +90,44 @@ python examples/rna_workflow.py --output-dir outputs/synthetic_rna
 
 The synthetic example selects 60 genes for speed. It checks the software workflow and does not reproduce experimental performance.
 
+## Five-modality survival training
+
+`omnit2i-train-fusion` trains the spatial molecular encoders, H&E adapter, shared projection, availability-aware fusion, and survival heads together. It uses one Cox loss over the core risk set, observed-only auxiliary Cox losses, and paired projection alignment. BatchNorm running statistics remain fixed. Validation C-index selects the checkpoint.
+
+Supply the master cohort CSV described above and one NPZ per modality:
+
+| Archive | Required arrays | Input shape |
+| --- | --- | --- |
+| RNA, CNV, methylation | `patient`, `partition`, `images` | `[observed patients, 3, 45, 45]` |
+| Protein | `patient`, `partition`, `images` | `[observed patients, 3, 17, 17]` |
+| H&E | `patient`, `embeddings` | `[observed patients, 1536]` |
+
+Each archive contains only genuinely observed patients for that modality. Archive rows may have any order: the loader joins by patient ID, rejects duplicate or unknown patients and inconsistent partitions, and derives availability from membership. Every cohort patient needs at least one observed modality. The current backbone also requires every modality to be represented somewhere in each of the core and validation partitions.
+
+Molecular images must use parameters fitted on the supplied core patients. H&E inputs are frozen patient-level embeddings before fold standardization; this command fits their mean and standard deviation on observed core patients and saves those parameters. H&E feature extraction and the CNV/protein/methylation raw-data commands are still being organized.
+
+```bash
+omnit2i-train-fusion --cohort cohort.csv \
+  --rna rna/images.npz --cnv cnv/images.npz \
+  --protein protein/images.npz --methylation methylation/images.npz --he he.npz \
+  --rna-checkpoint rna/model.pt --cnv-checkpoint cnv/model.pt \
+  --protein-checkpoint protein/model.pt --methylation-checkpoint methylation/model.pt \
+  --output-dir outputs/fusion --seed 101 --device cuda
+```
+
+The four molecular checkpoints must contain the pretrained spatial encoder under `encoder.*` in `model_state` or `state_dict`. The RNA command above writes this format. Defaults follow the extracted trainer: gated fusion, modality dropout 0.30, auxiliary weight 0.25, alignment weight 1.0, encoder learning rate 0.0001, and fusion learning rate 0.001. `--fusion-mode mean` selects mean fusion. `--seed` is the final seed for this run.
+
+Outputs include the selected `model.pt`, patient-level predictions, fusion weights, history, and options. The checkpoint stores model constructor arguments, core-fitted H&E scaling, and validation risk calibration. Output directories must be new. A short CPU example generates synthetic inputs and random encoder checkpoints:
+
+```bash
+python examples/multimodal_workflow.py --output-dir outputs/synthetic_multimodal
+```
+
+This example checks loading, alignment, optimization, and serialization. Its random input checkpoints are substitutes for Stage A outputs solely for the software check.
+
 ## Release status
 
-Multimodal data preparation, fusion/joint training, and evaluation scripts are being prepared in stages. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
+Multimodal raw-data preparation, cross-modal joint training, and evaluation scripts are being prepared in stages. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
 
 ## Development
 
