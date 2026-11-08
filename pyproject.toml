@@ -13,6 +13,7 @@ authors = [{name = "Peng Li"}]
 dependencies = ["torch>=2.0", "numpy>=1.24", "pandas>=2.0", "scipy>=1.10"]
 
 [project.scripts]
+omnit2i-analyze-ipcw = "omnit2i.analysis.ipcw:main"
 omnit2i-build-rna-cohort = "omnit2i.preprocessing.build_rna_cohort:main"
 omnit2i-build-cnv-cohort = "omnit2i.preprocessing.build_cnv_cohort:main"
 omnit2i-build-rna-cnv-master = "omnit2i.preprocessing.build_rna_cnv_master:main"
@@ -37,6 +38,7 @@ omnit2i-train-joint = "omnit2i.training.crossmodal:main"
 omnit2i-evaluate-subsets = "omnit2i.evaluation:main"
 
 [project.optional-dependencies]
+analysis = ["scikit-survival>=0.25", "lifelines>=0.30", "numba>=0.60", "openpyxl>=3.1"]
 data = ["scikit-learn>=1.3", "requests>=2.28"]
 he = ["Pillow>=9", "tiffslide>=2", "torchvision>=0.15", "timm>=1.0.3", "tqdm>=4"]
 test = ["pytest>=7"]

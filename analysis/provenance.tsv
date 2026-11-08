@@ -1,0 +1,16 @@
+release_script	original_script
+omnit2i/analysis/ipcw.py	runs/omnit2i_oof_ipcw_metrics_v1_2026-08-21/code/evaluate_oof_ipcw_metrics.py
+bootstrap_survival.R	figures/outputs/plot_code/Figure3_95CI/compute_bootstrap_95ci.R
+bootstrap_survival.R (current point estimates)	figures/outputs/plot_code/v2_v15style/Figure3/prepare_source_data.R
+km_natural.R	figures/outputs/plot_code/Figure3/plot_fig3c.R
+km_complete.R	figures/outputs/plot_code/Figure3/plot_fig3d.R
+roc_survival.R	figures/outputs/plot_code/v2_v15style/Figure3/prepare_roc_source.R
+cancer_auc.R	figures/outputs/plot_code/ExtendedData/EDFigure2_cancer_specific_td_auc_draft/compute_edfig2cd_cancer_specific_auc.R
+bootstrap_cancer_auc.R	figures/outputs/plot_code/ExtendedData/EDFigure1/compute_edfig1_cancer_specific_auc_95ci.R
+prepare_subset_sources.py	figures/outputs/plot_code/v2_v15style/Figure4/prepare_sources.py
+km_statistics.py	reports/oof_auc_km_core_c3_2026-10-26/code/replay_km.py
+omnit2i/analysis/paired_bootstrap.py	runs/omnit2i_core_c3_vector_controls_v1_2026-10-19/code/bootstrap_survival.py
+measured_gains.py	reports/measured_conditional_gains_2026-10-26/code/conditional_gains.py
+prepare_availability.py	figures/outputs/plot_code/v2_v15exact/Figure2/plot_a.R; plot_b.R; plot_c.R
+prepare_ablation_sources.R	figures/outputs/plot_code/v2_v15exact/revision_2026-10-28/prepare_sources.R; legends_2026-10-28/Figure6/plot_b.R
+bootstrap_measured_gains.py	reports/measured_conditional_gains_2026-10-26/code/conditional_gains.py; reports/paired_main_comparisons_ci_2026-10-26/code/paired_ci.py

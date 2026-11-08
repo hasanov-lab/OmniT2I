@@ -41,4 +41,3 @@ draw_a <- function(font_scale=1) {
 }
 png(file.path(out,'Figure6_panel_a.png'),width=125,height=106,units='mm',res=300);draw_a();dev.off()
 cairo_pdf(file.path(out,'Figure6_panel_a.pdf'),width=125/25.4,height=106/25.4);draw_a();dev.off()
-
