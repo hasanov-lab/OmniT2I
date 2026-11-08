@@ -136,7 +136,7 @@ Outputs include the selected `model.pt`, patient-level predictions, fusion weigh
 python examples/multimodal_workflow.py --output-dir outputs/synthetic_multimodal
 ```
 
-This example checks preprocessing, molecular pretraining, patient alignment, fusion training, joint training, and serialization. It uses synthetic measurements and shortened training schedules solely for the software check.
+This example checks preprocessing, molecular pretraining, patient alignment, fusion training, joint training, frozen subset evaluation, and serialization. It uses synthetic measurements and shortened training schedules solely for the software check.
 
 ## Cross-modal joint training
 
@@ -167,9 +167,26 @@ The defaults preserve 40 warm-up epochs, up to 80 joint epochs, source dropout 0
 
 Outputs include `model.pt`, `frozen_fallback.pt` (the source survival model plus the best warm-up translator), `target_baselines.npz`, predictions, fusion weights, history, and options. Both checkpoints store constructor arguments and risk calibration. Feature decoder outputs are residuals: add the saved cancer-specific mean, or global mean for an unseen cancer, to recover the prepared target scale. The multimodal synthetic example above exercises this command after fusion training.
 
+## Frozen subset evaluation
+
+```bash
+omnit2i-evaluate-subsets --cohort cohort.csv \
+  --rna rna/images.npz --cnv cnv/images.npz \
+  --protein protein/images.npz --methylation methylation/images.npz --he he.npz \
+  --checkpoint outputs/joint/model.pt --targets targets.npz \
+  --target-baselines outputs/joint/target_baselines.npz \
+  --output-dir outputs/evaluation --device cuda
+```
+
+This command retains the manuscript's complete-case protocol: 30 nonempty proper source subsets, each evaluated under `source_only`, `cancer_mean`, `virtual`, and `measured` conditions on the same complete-case test patients. Each virtual target is independently predicted from the original measured source subset. `measured` uses all five measured modalities. H&E reconstruction predicts an embedding, rather than an image.
+
+The model remains frozen. Latent cancer means use observed core patients; feature reconstruction adds the saved Stage C cancer means to decoder residuals. Each subset/condition uses its own affine risk calibration fitted on complete-case validation patients. At least two such validation patients and one complete-case test patient are required. Test outcomes enter neither predictions nor calibration. Use the corresponding training cohort, modality preprocessing, target archive, and saved feature means for the selected checkpoint. The command also accepts `frozen_fallback.pt` with the same target means.
+
+Outputs are `predictions.tsv.gz` (30 rows per test patient, with raw and calibrated risks for all four conditions) and `feature_metrics.tsv.gz` (75 subset/target summaries). Reconstruction summaries preserve the original profile correlations, within-cancer correlations, and error improvement relative to core cancer means. Undefined correlations, including constant profiles or cancers with fewer than two test patients, remain NaN. Feature IDs, target scales, patient IDs, and availability are checked against the supplied inputs and saved means.
+
 ## Release status
 
-Upstream raw-data preparation (including methylation probe aggregation and H&E embedding extraction) and evaluation scripts are being prepared in stages. Molecular preprocessing and Stage A/B/C training are available for prepared matrices and embeddings. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
+Upstream raw-data preparation (including methylation probe aggregation and H&E embedding extraction) and the remaining analysis/figure scripts are being prepared in stages. Molecular preprocessing, Stage A/B/C training, and frozen 30-subset evaluation are available for prepared matrices and embeddings. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
 
 ## Development
 

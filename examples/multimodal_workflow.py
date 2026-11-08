@@ -25,7 +25,7 @@ def main() -> None:
     cohort_path = args.output_dir / "cohort.csv"
     cohort.to_csv(cohort_path, index=False)
     availability = np.ones((20, 5), dtype=bool)
-    availability[np.arange(20), np.arange(20) % 5] = False
+    availability[np.arange(0, 20, 2), np.arange(0, 20, 2) % 5] = False
     paths, checkpoints = [], []
     for index, name in enumerate(MODALITIES):
         rows = rng.permutation(np.flatnonzero(availability[:, index]))
@@ -78,7 +78,13 @@ def main() -> None:
         "--targets", str(target_path), "--output-dir", str(args.output_dir / "joint"),
         "--warmup-epochs", "1", "--joint-epochs", "1", "--validation-frequency", "1",
     ], check=True)
-    print("Synthetic preprocessing and Stage A/B/C workflow completed; these models have no scientific interpretation.")
+    subprocess.run([
+        sys.executable, "-m", "omnit2i.evaluation", "--cohort", str(cohort_path),
+        *paths, "--checkpoint", str(args.output_dir / "joint/model.pt"),
+        "--targets", str(target_path), "--target-baselines", str(args.output_dir / "joint/target_baselines.npz"),
+        "--output-dir", str(args.output_dir / "evaluation"),
+    ], check=True)
+    print("Synthetic preprocessing, Stage A/B/C, and frozen evaluation completed; these models have no scientific interpretation.")
 
 
 if __name__ == "__main__":

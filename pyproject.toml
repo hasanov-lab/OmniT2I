@@ -19,6 +19,7 @@ omnit2i-train-rna = "omnit2i.training.rna:main"
 omnit2i-train-molecular = "omnit2i.training.rna:main"
 omnit2i-train-fusion = "omnit2i.training.fusion:main"
 omnit2i-train-joint = "omnit2i.training.crossmodal:main"
+omnit2i-evaluate-subsets = "omnit2i.evaluation:main"
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
