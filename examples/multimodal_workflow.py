@@ -1,4 +1,4 @@
-"""Exercise five-modality training with synthetic inputs and random encoder checkpoints."""
+"""Exercise fusion and joint training with synthetic inputs and random checkpoints."""
 
 import argparse
 from pathlib import Path
@@ -47,7 +47,25 @@ def main() -> None:
         sys.executable, "-m", "omnit2i.training.fusion", "--cohort", str(cohort_path),
         *paths, *checkpoints, "--output-dir", str(args.output_dir / "fusion"), "--epochs", "2",
     ], check=True)
-    print("Synthetic fusion workflow completed; random initial checkpoints are not pretrained models.")
+    targets = {
+        "patient": cohort["patient"].to_numpy(str), "cancer_type": cohort["cancer_type"].to_numpy(str),
+        "partition": cohort["partition"].to_numpy(str), "availability": availability,
+        "modalities": np.array(MODALITIES), "target_scale": np.array(["synthetic_z"] * 5),
+    }
+    for index, name in enumerate(MODALITIES):
+        values = rng.normal(size=(len(cohort), 12 + index)).astype(np.float32)
+        values[~availability[:, index]] = np.nan
+        targets[f"{name}_target"] = values
+        targets[f"{name}_feature_ids"] = np.array([f"feature_{i}" for i in range(values.shape[1])])
+    target_path = args.output_dir / "targets.npz"
+    np.savez_compressed(target_path, **targets)
+    subprocess.run([
+        sys.executable, "-m", "omnit2i.training.crossmodal", "--cohort", str(cohort_path),
+        *paths, "--source-checkpoint", str(args.output_dir / "fusion" / "model.pt"),
+        "--targets", str(target_path), "--output-dir", str(args.output_dir / "joint"),
+        "--warmup-epochs", "1", "--joint-epochs", "1", "--validation-frequency", "1",
+    ], check=True)
+    print("Synthetic fusion/joint workflow completed; random initial checkpoints are not pretrained models.")
 
 
 if __name__ == "__main__":

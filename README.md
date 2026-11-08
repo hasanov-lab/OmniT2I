@@ -123,11 +123,40 @@ Outputs include the selected `model.pt`, patient-level predictions, fusion weigh
 python examples/multimodal_workflow.py --output-dir outputs/synthetic_multimodal
 ```
 
-This example checks loading, alignment, optimization, and serialization. Its random input checkpoints are substitutes for Stage A outputs solely for the software check.
+This example checks loading, alignment, fusion training, joint training, and serialization. Its random input checkpoints are substitutes for Stage A outputs solely for the software check.
+
+## Cross-modal joint training
+
+`omnit2i-train-joint` starts from the fusion checkpoint. It first freezes the survival backbone and warms up the translator and feature decoders, then updates those components, the fusion heads, the final molecular convolution blocks, and the H&E adapter. Early molecular layers and BatchNorm running statistics remain fixed. The target modality is excluded from translator inputs; its observed projected embedding is detached supervision. Source dropout retains at least one genuinely observed source.
+
+Reuse the same cohort and input archives as fusion training. The command reuses the checkpoint's core-fitted H&E scaling. Supply a target NPZ with these arrays:
+
+| Array | Contents |
+| --- | --- |
+| `patient` | All master patient IDs, unique; rows are aligned by ID |
+| `modalities` | `rna`, `cnv`, `protein`, `methylation`, `he`, in that order |
+| `availability` | Boolean `[patients, 5]`, matching the input archives |
+| `target_scale` | Five strings describing the prepared feature scales |
+| `<modality>_target` | Float `[patients, features]` in the measured target feature space |
+| `<modality>_feature_ids` | Unique feature IDs in the corresponding column order |
+
+Targets are prepared molecular profiles or H&E embeddings, rather than image pixels. Any upstream filtering, imputation, and scaling must be fitted on core patients only. Observed target rows must be finite; missing rows may contain NaNs. Optional `cancer_type`, `partition`, and `outer_test` arrays are checked against the cohort when present. The existing cancer-specific mean subtraction is fitted on observed core targets, with the core global mean used for unseen cancers. Validation targets are transformed with those saved means; test targets do not enter optimization or checkpoint selection. Both core and validation need patients with at least two observed modalities.
+
+```bash
+omnit2i-train-joint --cohort cohort.csv \
+  --rna rna/images.npz --cnv cnv/images.npz \
+  --protein protein/images.npz --methylation methylation/images.npz --he he.npz \
+  --source-checkpoint outputs/fusion/model.pt --targets targets.npz \
+  --output-dir outputs/joint --seed 101 --fold 0 --device cuda
+```
+
+The defaults preserve 40 warm-up epochs, up to 80 joint epochs, source dropout 0.35, and the existing latent, feature, and risk-consistency losses. Validation checks run every five epochs. Joint checkpoints are selected when cross-modal validation loss improves and survival C-index remains within 0.005 of the frozen survival model. If none qualify, the selected model retains the best warm-up translator and frozen survival backbone. `--seed` is the base seed; `--fold` contributes the production offset of `fold * 1000` and does not create or change partitions. For fold `k`, use the corresponding fusion checkpoint trained with the final seed `base_seed + k * 1000`.
+
+Outputs include `model.pt`, `frozen_fallback.pt` (the source survival model plus the best warm-up translator), `target_baselines.npz`, predictions, fusion weights, history, and options. Both checkpoints store constructor arguments and risk calibration. Feature decoder outputs are residuals: add the saved cancer-specific mean, or global mean for an unseen cancer, to recover the prepared target scale. The multimodal synthetic example above exercises this command after fusion training.
 
 ## Release status
 
-Multimodal raw-data preparation, cross-modal joint training, and evaluation scripts are being prepared in stages. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
+Multimodal raw-data preparation, the remaining molecular pretraining commands, and evaluation scripts are being prepared in stages. This release does not yet reproduce the manuscript experiments end to end. Patient data, research outputs, and pretrained weights are not included; weights are planned for release after publication.
 
 ## Development
 
