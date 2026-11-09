@@ -276,3 +276,14 @@ omnit2i-prepare-scanb-clinical --series-matrix GSE96058-*_series_matrix.txt.gz -
 ```
 
 Replicates ending in `repl` are excluded after checking patient-level outcome agreement. Expression is inverted from `log2(FPKM + 0.1)` and converted to `log2(TPM + 1)` using all deposited genes in the TPM denominator, before selecting model genes. Model weights will be released after publication.
+
+## Manuscript ablations
+
+```bash
+omnit2i-train-ablation --variant no_c2 --prepared-dir PREPARED \
+  --reference-dir TRAINED --output-dir ABLATION --seed 101 --fold 0 --device cuda
+```
+
+The variants are `no_pretraining`, `no_c2`, `no_c3`, `random_layout`, `no_risk_consistency`, `mean_fusion`, `no_modality_dropout`, and `simplified`. Use the same prepared seed/fold as the main model. Input ablations retrain A/B/C; channel ablations also omit that channel from reconstruction loss. Random layouts retain the original seed 20261014, fold and modality rule, with snake placement and unchanged measured feature targets. Their transformed input archives are saved under `ABLATION/inputs/`; use those archives for frozen evaluation too.
+
+Component ablations reuse the main Stage A. `no_risk_consistency` reuses main Stage B and trains only C. `mean_fusion` and `no_modality_dropout` train B/C with their respective original changes. For `simplified`, pass the **mean-fusion** ablation directory as `--reference-dir`: it reuses that Stage B and trains C with zero risk-consistency weight. Outputs use the existing A/B/C checkpoint formats. No preprocessing is refitted and no new patient split is generated.

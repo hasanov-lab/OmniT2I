@@ -1,4 +1,5 @@
 release_script	original_script
+omnit2i/training/ablations.py; omnit2i/training/workflow.py; omnit2i/training/rna.py	runs/omnit2i_core_c3_encoder_ablations_v1_2026-10-14/code/input_ablations.py; no_pretraining.py; train.py; runs/omnit2i_core_c3_ablations_v1_2026-10-13/code/train.py; runs/omnit2i_core_c3_simplified_v1_2026-10-14/code/train.py
 omnit2i/analysis/clinical.py	reports/clinical_adjusted_prognosis_2026-09-30/analyze.py; reports/clinical_adjusted_prognosis_core_c3_2026-10-26/analyze.py
 omnit2i/analysis/clinical_sensitivity.py	reports/clinical_adjusted_prognosis_2026-09-30/sensitivity.py; reports/clinical_adjusted_prognosis_core_c3_2026-10-26/analyze.py
 omnit2i/external.py	runs/omnit2i_treatment_outcome_v1_2026-10-02/code/prepare_frozen_rna.py; runs/omnit2i_cptac_luad_coad_external_v1_2026-10-26/code/evaluate.py; runs/omnit2i_scanb_frozen_external_v1_2026-10-31/code/evaluate.py; runs/omnit2i_cptac_additional_rna_external_v1_2026-10-29/code/evaluate.py; reports/scanb_liri_external_eligibility_2026-10-30/audit.py

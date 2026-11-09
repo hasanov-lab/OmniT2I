@@ -83,12 +83,16 @@ def mask_measured_features(image: torch.Tensor, mask_fraction: float, n_features
     return flat.reshape_as(image), mask
 
 
-def masked_reconstruction_loss(prediction: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+def masked_reconstruction_loss(prediction: torch.Tensor, target: torch.Tensor, mask: torch.Tensor, *, omitted_channel: int | None = None) -> torch.Tensor:
     if target.ndim != 3 or target.shape[1] != 3 or prediction.shape != target.shape:
         raise ValueError("Prediction and target must have the same [batch, 3, features] shape")
     if mask.shape != (target.shape[0], target.shape[2]) or not mask.any():
         raise ValueError("Mask must match the feature axis and select at least one value")
     loss = F.smooth_l1_loss(prediction, target, reduction="none")
+    if omitted_channel is not None:
+        if omitted_channel not in (1, 2):
+            raise ValueError("Only C2 or C3 may be omitted")
+        loss = loss[:, [channel for channel in range(3) if channel != omitted_channel]]
     return loss[mask.unsqueeze(1).expand_as(loss)].mean()
 
 
@@ -114,8 +118,8 @@ def train_molecular(images: np.ndarray, cohort: pd.DataFrame, n_features: int, a
         raise ValueError(f"{modality} images must be finite with shape [patients, 3, {side}, {side}]")
     if not 1 <= n_features <= side * side:
         raise ValueError("Measured feature count must fit the image grid")
-    if min(args.epochs, args.pretrain_epochs, args.patience, args.pretrain_batch_size, args.inference_batch_size) < 1:
-        raise ValueError("Epoch counts, patience, and batch sizes must be positive")
+    if args.pretrain_epochs < 0 or min(args.epochs, args.patience, args.pretrain_batch_size, args.inference_batch_size) < 1:
+        raise ValueError("Pretraining epochs must be nonnegative; other epoch counts, patience, and batch sizes must be positive")
     if not 0 < args.mask_fraction < 1 or not 0 <= args.dropout < 1:
         raise ValueError("mask_fraction must lie in (0, 1) and dropout in [0, 1)")
     if not np.isfinite([args.lr, args.pretrain_lr, args.weight_decay]).all() or min(args.lr, args.pretrain_lr) <= 0 or args.weight_decay < 0:
@@ -130,29 +134,31 @@ def train_molecular(images: np.ndarray, cohort: pd.DataFrame, n_features: int, a
     concordance_index_censored(val_event, val_time, np.zeros(validation.sum()))
     core_images = torch.from_numpy(images[core])
     model = build_spatial_cox_model(args.seed, args.dropout, args.device, grid_height=side, grid_width=side)
-    autoencoder = MaskedRNAImageAutoencoder(model.encoder, n_features).to(args.device)
-    set_seed(args.seed + 90_000)
-    optimizer = torch.optim.AdamW(autoencoder.parameters(), lr=args.pretrain_lr, weight_decay=args.weight_decay)
     pretrain_history = []
-    for epoch in range(1, args.pretrain_epochs + 1):
-        autoencoder.train()
-        permutation = torch.randperm(len(core_images))
-        losses = []
-        for start in range(0, len(permutation), args.pretrain_batch_size):
-            batch = core_images[permutation[start:start + args.pretrain_batch_size]].to(args.device)
-            masked, mask = mask_measured_features(batch, args.mask_fraction, n_features)
-            optimizer.zero_grad(set_to_none=True)
-            loss = masked_reconstruction_loss(autoencoder(masked), measured_values(batch, n_features), mask)
-            if not torch.isfinite(loss):
-                raise ValueError(f"Non-finite pretraining loss at epoch {epoch}")
-            loss.backward()
-            optimizer.step()
-            losses.append(float(loss.detach().cpu()))
-        pretrain_history.append({"epoch": epoch, "masked_reconstruction_loss": float(np.mean(losses))})
-    encoder_state = {key: value.detach().cpu().clone() for key, value in autoencoder.encoder.state_dict().items()}
-    del autoencoder, optimizer
-    model = build_spatial_cox_model(args.seed, args.dropout, args.device, grid_height=side, grid_width=side)
-    model.encoder.load_state_dict(encoder_state)
+    if args.pretrain_epochs:
+        autoencoder = MaskedRNAImageAutoencoder(model.encoder, n_features).to(args.device)
+        set_seed(args.seed + 90_000)
+        optimizer = torch.optim.AdamW(autoencoder.parameters(), lr=args.pretrain_lr, weight_decay=args.weight_decay)
+        for epoch in range(1, args.pretrain_epochs + 1):
+            autoencoder.train()
+            permutation = torch.randperm(len(core_images))
+            losses = []
+            for start in range(0, len(permutation), args.pretrain_batch_size):
+                batch = core_images[permutation[start:start + args.pretrain_batch_size]].to(args.device)
+                masked, mask = mask_measured_features(batch, args.mask_fraction, n_features)
+                optimizer.zero_grad(set_to_none=True)
+                loss = masked_reconstruction_loss(autoencoder(masked), measured_values(batch, n_features), mask,
+                    omitted_channel={"no_c2": 1, "no_c3": 2}.get(getattr(args, "input_ablation", None)))
+                if not torch.isfinite(loss):
+                    raise ValueError(f"Non-finite pretraining loss at epoch {epoch}")
+                loss.backward()
+                optimizer.step()
+                losses.append(float(loss.detach().cpu()))
+            pretrain_history.append({"epoch": epoch, "masked_reconstruction_loss": float(np.mean(losses))})
+        encoder_state = {key: value.detach().cpu().clone() for key, value in autoencoder.encoder.state_dict().items()}
+        del autoencoder, optimizer
+        model = build_spatial_cox_model(args.seed, args.dropout, args.device, grid_height=side, grid_width=side)
+        model.encoder.load_state_dict(encoder_state)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     core_images = core_images.to(args.device)
     time = torch.as_tensor(cohort.loc[core, "time"].to_numpy(np.float32), device=args.device)
@@ -186,7 +192,7 @@ def train_molecular(images: np.ndarray, cohort: pd.DataFrame, n_features: int, a
     return {
         "checkpoint": {"model_state": best_state, "architecture": "cnn_spatial_projector", "modality": modality, "grid_height": side, "grid_width": side, "n_features": n_features, "dropout": args.dropout, "seed": args.seed, "best_epoch": best_epoch, "validation_c_index": best_score, "risk_mean": mean, "risk_std": std},
         "risk_raw": risk, "risk": (risk - mean) / std, "embeddings": embeddings,
-        "pretraining_history": pd.DataFrame(pretrain_history), "history": pd.DataFrame(history),
+        "pretraining_history": pd.DataFrame(pretrain_history, columns=["epoch", "masked_reconstruction_loss"]), "history": pd.DataFrame(history),
     }
 
 
@@ -201,6 +207,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=101, help="Final training seed; supplied per fold/run")
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--pretrain-epochs", type=int, default=80)
+    parser.add_argument("--input-ablation", choices=("no_c2", "no_c3"))
     parser.add_argument("--epochs", type=int, default=180)
     parser.add_argument("--patience", type=int, default=25)
     parser.add_argument("--pretrain-batch-size", type=int, default=256)
