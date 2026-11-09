@@ -33,6 +33,14 @@ KM grouping remains native R: within-cancer/seed risk percentiles, five-seed pat
 
 ## Measured subsets and predicted modalities
 
+Aggregate the 25 evaluation directories (`seed_<seed>/fold<fold>`, each containing the four archives written by `omnit2i-evaluate-subsets`):
+
+```bash
+omnit2i-aggregate-subsets --input-root EVALUATIONS --output-dir WORK/Inputs/subsets
+```
+
+This produces the measured, fill-all and selective summaries below. Within each seed, C-indices pool the five OOF folds and weight within-cancer concordance by comparable pairs. Reconstruction correlations retain the original test-patient-count weighting across folds. Means and sample SDs summarize the five seeds. The specialist `paired_per_seed.tsv` is a separate model-comparison input.
+
 Put the saved summaries under `Inputs/subsets/`:
 
 - `paired_per_seed.tsv`: specialist versus OmniT2I comparisons over 31 measured subsets and five seeds. The final nine families are selected by excluding the three `adapted_*` models.

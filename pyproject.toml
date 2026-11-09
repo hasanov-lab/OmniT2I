@@ -13,6 +13,7 @@ authors = [{name = "Peng Li"}]
 dependencies = ["torch>=2.0", "numpy>=1.24", "pandas>=2.0", "scipy>=1.10"]
 
 [project.scripts]
+omnit2i-aggregate-subsets = "omnit2i.analysis.aggregation:main"
 omnit2i-split-cohort = "omnit2i.preprocessing.splits:main"
 omnit2i-prepare-targets = "omnit2i.preprocessing.feature_targets:main"
 omnit2i-train-fold = "omnit2i.training.workflow:main"

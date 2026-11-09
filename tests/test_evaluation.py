@@ -10,22 +10,8 @@ from omnit2i.metrics import _feature_metric_row
 from omnit2i.models import MODALITIES, FiveModalCrossModalMultitaskModel, OmicsHEEndToEndCox, TargetConditionedCrossModalTranslator
 
 
-def evaluation_inputs():
-    torch.manual_seed(174)
-    cohort = pd.DataFrame({
-        "patient": [f"p{i}" for i in range(12)], "cancer_type": ["A"] * 12,
-        "time": np.arange(1, 13), "event": 1,
-        "partition": ["core"] * 6 + ["validation"] * 3 + ["test"] * 3,
-    })
-    model = FiveModalCrossModalMultitaskModel(OmicsHEEndToEndCox(latent_dim=8), TargetConditionedCrossModalTranslator(output_dims={name: 12 for name in MODALITIES}, latent_dim=8, linear_rank=4))
-    projected = torch.randn(12, 5, 8)
-    targets = [np.random.default_rng(i).normal(size=(12, 12)).astype(np.float32) for i in range(5)]
-    baselines = {name: {"target_scale": "synthetic", "global_mean": np.zeros(12, np.float32), "cancer_labels": np.array(["A"]), "cancer_means": np.zeros((1, 12), np.float32)} for name in MODALITIES}
-    return model, projected, cohort, np.ones((12, 5), bool), targets, baselines
-
-
-def test_30_subsets_independent_translation_and_frozen_parameters(monkeypatch):
-    model, projected, cohort, availability, targets, baselines = evaluation_inputs()
+def test_30_subsets_independent_translation_and_frozen_parameters(monkeypatch, evaluation_inputs):
+    model, projected, cohort, availability, targets, baselines = evaluation_inputs
     original = model.translator.forward
     calls = []
 
@@ -70,11 +56,11 @@ def test_reconstruction_metrics_have_expected_perfect_and_baseline_scores():
     assert failed["residual_mse_improvement"] == 0
 
 
-def test_31_measured_subsets_and_180_selective_routes(monkeypatch):
+def test_31_measured_subsets_and_180_selective_routes(monkeypatch, evaluation_inputs):
     from omnit2i.training.crossmodal import fused_risk_from_projected
     from omnit2i.training.losses import fit_risk_calibration, apply_risk_calibration
 
-    model, projected, cohort, availability, targets, baselines = evaluation_inputs()
+    model, projected, cohort, availability, targets, baselines = evaluation_inputs
     original = model.translator.forward
 
     def checked(values, mask, target):
@@ -120,10 +106,10 @@ def test_31_measured_subsets_and_180_selective_routes(monkeypatch):
         torch.testing.assert_close(value, before[key], rtol=0, atol=0)
 
 
-def test_saved_target_alignment_and_feature_order_validation(tmp_path):
+def test_saved_target_alignment_and_feature_order_validation(tmp_path, evaluation_inputs):
     from types import SimpleNamespace
 
-    _, _, cohort, availability, targets, baselines = evaluation_inputs()
+    _, _, cohort, availability, targets, baselines = evaluation_inputs
     data = SimpleNamespace(cohort=cohort, availability=availability)
     order = np.arange(12)[::-1]
     archive = {"patient": cohort["patient"].to_numpy(str)[order], "modalities": np.array(MODALITIES), "availability": availability[order], "target_scale": np.array(["synthetic"] * 5)}
