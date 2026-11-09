@@ -9,6 +9,7 @@ pytest.importorskip("xgboost")
 
 from omnit2i.comparisons import prepare, run
 from omnit2i.comparisons import aggregate as aggregation
+from omnit2i.comparisons import published
 from omnit2i.models import MODALITIES
 
 
@@ -186,3 +187,32 @@ def test_oof_aggregation_and_paired_tables(tmp_path, monkeypatch):
         aggregation.comparison_tables(pd.concat([per_seed, per_seed.iloc[:1]]), omni)
     with pytest.raises(ValueError, match="Incomplete"):
         aggregation.comparison_tables(per_seed, omni.iloc[1:])
+
+
+@pytest.mark.parametrize("model", published.MODELS)
+def test_published_adaptations_train_without_test_outcomes(tmp_path, model):
+    cohort, rna, expression, source = inputs()
+    targets = prepare.prepare(cohort, rna, expression, source, 0, 4)
+    args = small_args(tmp_path, model)
+    args.epochs, args.patience, args.batch_size = 2, 2, 32
+    args.subset_index = 5  # RNA + CNV only.
+    cohort.to_csv(args.cohort, index=False)
+    np.savez_compressed(args.targets, **targets)
+    run.train(args)
+    predictions = pd.read_csv(args.output_dir / "predictions.tsv.gz", sep="\t")
+    marker = json.loads((args.output_dir / "complete.json").read_text())
+    assert marker["source_subset"] == "rna+cnv"
+    assert marker["n_inner_core"] == int((cohort.partition.eq("core") & cohort[run.AVAILABILITY_COLUMNS].all(axis=1)).sum())
+    tuning = pd.read_csv(args.output_dir / "tuning.tsv", sep="\t").iloc[0]
+    assert tuning.n_input_features == 8
+    assert "adapted implementation" in tuning.adaptation_status
+    assert np.isfinite(predictions.risk_score_calibrated).all()
+    assert np.std(predictions.risk_score_calibrated) > 1e-8
+    cohort.loc[cohort.partition.eq("test"), "time"] += 10000
+    cohort.loc[cohort.partition.eq("test"), "event"] = 0
+    cohort.to_csv(args.cohort, index=False)
+    args.output_dir = tmp_path / "changed_test"
+    run.train(args)
+    repeated = pd.read_csv(args.output_dir / "predictions.tsv.gz", sep="\t")
+    np.testing.assert_array_equal(predictions.risk_score_raw, repeated.risk_score_raw)
+    np.testing.assert_array_equal(predictions.risk_score_calibrated, repeated.risk_score_calibrated)

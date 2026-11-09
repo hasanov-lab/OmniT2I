@@ -13,7 +13,7 @@ import pandas as pd
 from omnit2i.analysis.aggregation import SEEDS, _mean_sd
 from omnit2i.analysis.concordance import fold_metrics
 from omnit2i.data import validate_cohort
-from .run import MODELS, AVAILABILITY_COLUMNS, modality_subsets, subset_slug
+from .run import ALL_MODELS, AVAILABILITY_COLUMNS, modality_subsets, subset_slug
 
 METRICS = ["pooled_c_index", "within_cancer_c_index", "cross_cancer_c_index"]
 
@@ -275,7 +275,7 @@ def comparison_tables(baselines, omni):
     baselines = baselines.rename(columns={"patients": "n_patients", "events": "n_events"})
     routes = {(seed, "+".join(subset), len(subset)) for seed in SEEDS for subset in modality_subsets()}
     models = set(baselines.model)
-    require(bool(models) and models <= set(MODELS), "Unknown or empty comparison models")
+    require(bool(models) and models <= set(ALL_MODELS), "Unknown or empty comparison models")
     for frame, keys, expected in (
         (omni, ["seed", "source_subset", "observed_count"], routes),
         (baselines, ["model", "seed", "source_subset", "observed_count"],
@@ -295,13 +295,13 @@ def comparison_tables(baselines, omni):
     return dict(zip(names, compare_with_omnit2i(baselines, omni, "Shared-core specialists")))
 
 
-def aggregate(root, cohort, output, omni, models=MODELS):
+def aggregate(root, cohort, output, omni, models=ALL_MODELS):
     if output.exists():
         raise FileExistsError(output)
     cohort = validate_cohort(cohort)
     require(set(cohort.fold) == set(range(5)), "All five outer folds are required")
     require(cohort[AVAILABILITY_COLUMNS].isin([True, False]).all().all(), "Invalid modality availability")
-    require(bool(models) and len(set(models)) == len(models) and set(models) <= set(MODELS), "Unknown or duplicate models")
+    require(bool(models) and len(set(models)) == len(models) and set(models) <= set(ALL_MODELS), "Unknown or duplicate models")
     master = cohort.loc[cohort[AVAILABILITY_COLUMNS].all(axis=1)].reset_index(drop=True)
     require(set(master.fold) == set(range(5)), "Each fold needs complete-case test patients")
     rows, tuning_rows = [], []
@@ -339,7 +339,7 @@ def main():
     parser.add_argument("--cohort", type=Path, required=True, help="Shared cohort.csv (all patients)")
     parser.add_argument("--omnit2i-per-seed", type=Path, required=True, help="Measured omnit2i_all_31_subsets_per_seed.tsv")
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--models", nargs="+", choices=MODELS, default=MODELS)
+    parser.add_argument("--models", nargs="+", choices=ALL_MODELS, default=ALL_MODELS)
     args = parser.parse_args()
     aggregate(args.input_root, pd.read_csv(args.cohort, dtype={"patient": str}), args.output_dir,
               pd.read_csv(args.omnit2i_per_seed, sep="\t"), args.models)

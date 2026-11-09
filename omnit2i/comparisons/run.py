@@ -13,12 +13,13 @@ import pandas as pd
 from omnit2i.data import validate_cohort
 from omnit2i.models import MODALITIES
 from omnit2i.training.losses import fit_risk_calibration, apply_risk_calibration
-from . import estimators
+from . import estimators, published
 from .prepare import RNA_SCALE
 
 AVAILABILITY_COLUMNS = ["has_rna", "has_cnv", "has_rppa", "has_methylation", "has_he"]
 MODELS = ("deepsurv", "enet_cox", "lasso_cox", "xgboost_cox", "rsf", "survival_gbm",
           "extra_survival_trees", "coxboost", "survival_svm")
+ALL_MODELS = MODELS + published.MODELS
 
 def modality_subsets() -> tuple[tuple[str, ...], ...]:
     """Return all 31 non-empty subsets in size-then-lexicographic order."""
@@ -53,7 +54,7 @@ def _subset_rows(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--model", required=True, choices=MODELS)
+    parser.add_argument("--model", required=True, choices=ALL_MODELS)
     parser.add_argument("--subset-index", type=int, choices=range(31), required=True)
     parser.add_argument("--seed", type=int, choices=(101, 202, 303, 404, 505), required=True)
     parser.add_argument("--fold", type=int, choices=range(5), required=True)
@@ -97,6 +98,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--deepsurv-epochs", type=int, default=220)
     parser.add_argument("--deepsurv-patience", type=int, default=30)
     parser.add_argument("--deepsurv-min-delta", type=float, default=1e-5)
+    parser.add_argument("--epochs", type=int, default=160)
+    parser.add_argument("--patience", type=int, default=24)
+    parser.add_argument("--min-delta", type=float, default=1e-5)
+    parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--prediction-batch-size", type=int, default=512)
+    parser.add_argument("--learning-rate", type=float, default=None)
+    parser.add_argument("--weight-decay", type=float, default=1e-4)
+    parser.add_argument("--senmo-l1", type=float, default=1e-7)
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--cohort", type=Path, required=True)
     parser.add_argument("--targets", type=Path, required=True)
@@ -169,20 +178,25 @@ def train(args):
         raise ValueError("All three complete-case partitions must be nonempty")
     subset = modality_subsets()[args.subset_index]
     indices = tuple(MODALITIES.index(name) for name in subset)
-    core, validation, test = [_subset_rows(targets, available, part, indices) for part in rows]
-    result = fit(args.model, core, cohort.iloc[rows[0]], validation, cohort.iloc[rows[1]], test, args,
-                 args.seed + args.fold * 1000)
+    input_features = sum(targets[i].shape[1] for i in indices)
+    if args.model in published.MODELS:
+        result = published.fit(args.model, [targets[i] for i in indices], available[:, indices],
+                               cohort, rows, args, args.seed + args.fold * 1000)
+    else:
+        core, validation, test = [_subset_rows(targets, available, part, indices) for part in rows]
+        result = fit(args.model, core, cohort.iloc[rows[0]], validation, cohort.iloc[rows[1]], test, args,
+                     args.seed + args.fold * 1000)
     calibration = fit_risk_calibration(result.validation_risk, np.ones(len(rows[1]), dtype=bool))
     predictions = cohort.iloc[rows[2]][["patient", "cancer_type", "time", "event", "fold"]].copy()
     predictions["seed"], predictions["baseline"] = args.seed, args.model
     predictions["source_subset"], predictions["observed_count"] = "+".join(subset), len(subset)
-    predictions["risk_score_raw"] = result.test_risk
+    predictions["risk_score_raw"] = result.test_risk.astype(np.float32) if args.model in published.MODELS else result.test_risk
     predictions["risk_score_calibrated"] = apply_risk_calibration(result.test_risk, calibration)
     predictions["risk_score_complete_case_calibrated"] = predictions.risk_score_calibrated
     predictions["complete_case"] = True
     tuning = dict(seed=args.seed, fold=args.fold, baseline=args.model, component="+".join(subset),
                   subset_index=args.subset_index, n_inner_core=len(rows[0]), n_inner_validation=len(rows[1]),
-                  n_input_features=core.shape[1], availability_indicators=0, **result.metadata)
+                  n_input_features=input_features, availability_indicators=0, **result.metadata)
     args.output_dir.mkdir(parents=True, exist_ok=False)
     predictions.to_csv(args.output_dir / "predictions.tsv.gz", sep="\t", index=False)
     pd.DataFrame([tuning]).to_csv(args.output_dir / "tuning.tsv", sep="\t", index=False)
