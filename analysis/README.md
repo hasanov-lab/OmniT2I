@@ -31,6 +31,17 @@ Pass an absolute `WORK` path. IPCW uses the corresponding outer-training censori
 
 KM grouping remains native R: within-cancer/seed risk percentiles, five-seed patient means, then the within-cancer OOF median. `km_statistics.py` reproduces the final table's lifelines Efron Cox fit and approximate PH test with the KM time transform. This last step is required for the final `Fig3c/d_statistics.tsv` fields. The separate `*_proportional_hazards.tsv` files written by R contain native `cox.zph` diagnostics; they are distinct from the final table's explicitly named approximate PH field.
 
+## Clinical adjustment
+
+```bash
+omnit2i-analyze-clinical --master master_folds.csv --clinical tcga_survival_supplement.tsv \
+  --predictions-root TRAINED --output-dir WORK/Analysis/clinical
+```
+
+Use the original TCGA clinical supplement columns and positive OS times in days. `TRAINED` contains `seed_<seed>/fold<fold>/C/` from `omnit2i-train-fold`; direct Stage C directories and historical `survival_oof_predictions.tsv.gz` archives are also accepted. Every test patient, fold and outcome is checked against the master cohort, and saved validation risk standardization is retained before averaging five seed scores.
+
+The command runs the original five fold-specific cancer-stratified Cox adjustments for age, sex and grouped pathological stage, followed by all three original sensitivity specifications: age spline, cancer-by-stage strata, and an age effect changing after 365.25 days. It retains complete clinical cases, rank-transform PH diagnostics, five-fold Bonferroni P-value merging, warnings, and coverage counts. These post-hoc estimates condition on saved OOF scores; the command does not refit OmniT2I. Install the `analysis` extra and choose a new output directory.
+
 ## Measured subsets and predicted modalities
 
 Aggregate the 25 evaluation directories (`seed_<seed>/fold<fold>`, each containing the four archives written by `omnit2i-evaluate-subsets`):
