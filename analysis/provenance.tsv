@@ -1,4 +1,8 @@
 release_script	original_script
+omnit2i/comparisons/prepare.py	../tcga_pancan_multimodal/src/tcga_pancan_multimodal/export_conventional_baseline_feature_targets.py
+omnit2i/comparisons/estimators.py	../tcga_pancan_multimodal/src/tcga_pancan_multimodal/benchmark_a1_survival_baselines.py; ../tcga_pancan_multimodal/src/tcga_pancan_multimodal/benchmark_a1b_core_survival_models.py; runs/omnit2i_a1d_classical_survival_baselines_v1_2026-08-18/code/run_classical_survival_baseline.py
+omnit2i/comparisons/run.py	runs/omnit2i_complete_case_31subsets_baselines_v1_2026-08-19/code/run_complete_case_31subsets.py; runs/omnit2i_shared_core_specialists_v1_2026-10-14/code/run.py
+omnit2i/comparisons/aggregate.py	runs/omnit2i_complete_case_31subsets_baselines_v1_2026-08-19/code/aggregate_complete_case_31subsets.py; runs/omnit2i_final_benchmark_synthesis_v1_2026-08-20/code/summarize_benchmarks.py; runs/omnit2i_shared_core_specialists_v1_2026-10-14/code/aggregate.py
 omnit2i/training/ablations.py; omnit2i/training/workflow.py; omnit2i/training/rna.py	runs/omnit2i_core_c3_encoder_ablations_v1_2026-10-14/code/input_ablations.py; no_pretraining.py; train.py; runs/omnit2i_core_c3_ablations_v1_2026-10-13/code/train.py; runs/omnit2i_core_c3_simplified_v1_2026-10-14/code/train.py
 omnit2i/analysis/clinical.py	reports/clinical_adjusted_prognosis_2026-09-30/analyze.py; reports/clinical_adjusted_prognosis_core_c3_2026-10-26/analyze.py
 omnit2i/analysis/clinical_sensitivity.py	reports/clinical_adjusted_prognosis_2026-09-30/sensitivity.py; reports/clinical_adjusted_prognosis_core_c3_2026-10-26/analyze.py

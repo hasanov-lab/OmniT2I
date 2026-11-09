@@ -287,3 +287,23 @@ omnit2i-train-ablation --variant no_c2 --prepared-dir PREPARED \
 The variants are `no_pretraining`, `no_c2`, `no_c3`, `random_layout`, `no_risk_consistency`, `mean_fusion`, `no_modality_dropout`, and `simplified`. Use the same prepared seed/fold as the main model. Input ablations retrain A/B/C; channel ablations also omit that channel from reconstruction loss. Random layouts retain the original seed 20261014, fold and modality rule, with snake placement and unchanged measured feature targets. Their transformed input archives are saved under `ABLATION/inputs/`; use those archives for frozen evaluation too.
 
 Component ablations reuse the main Stage A. `no_risk_consistency` reuses main Stage B and trains only C. `mean_fusion` and `no_modality_dropout` train B/C with their respective original changes. For `simplified`, pass the **mean-fusion** ablation directory as `--reference-dir`: it reuses that Stage B and trains C with zero risk-consistency weight. Outputs use the existing A/B/C checkpoint formats. No preprocessing is refitted and no new patient split is generated.
+
+## Conventional comparison models
+
+Install `pip install '.[comparisons]'`. These nine specialists use conventional one-dimensional feature blocks: `deepsurv`, `enet_cox`, `lasso_cox`, `xgboost_cox`, `rsf`, `survival_gbm`, `extra_survival_trees`, `coxboost`, and `survival_svm`. RNA retains the original outer-training variance selection and z-scores **without invariant correction**; the other four blocks reuse the main prepared targets.
+
+```bash
+omnit2i-prepare-comparison-targets --cohort PREPARED/cohort.csv \
+  --rna-cohort SPLIT/rna_cohort.csv --expression xena_expression.tsv.gz \
+  --targets PREPARED/targets.npz --fold 0 --output comparison_targets.npz
+omnit2i-train-comparison --model deepsurv --subset-index 0 --seed 101 --fold 0 \
+  --cohort PREPARED/cohort.csv --targets comparison_targets.npz \
+  --output-dir SPECIALISTS/deepsurv/rna/seed_101/fold0
+omnit2i-aggregate-comparisons --input-root SPECIALISTS --cohort PREPARED/cohort.csv \
+  --omnit2i-per-seed EVALUATION/measured/omnit2i_all_31_subsets_per_seed.tsv \
+  --models deepsurv --output-dir COMPARISON_SUMMARY
+```
+
+Use the original logged Xena expression. Repeat target preparation per outer fold and training per shared seed/fold. All models restrict the population to patients with all five measured modalities, then intersect the existing core/validation/test roles; they do not resplit complete cases. The 31 subset indices follow `rna,cnv,protein,methylation,he`, combinations of size 1 through 5; output directories join subset names with `__`. Inputs concatenate only the selected feature blocks, with no availability indicators. Original defaults, core fitting, validation model selection and validation risk calibration are retained.
+
+Aggregation requires all five folds, five seeds and 31 subsets for each requested model. It pools OOF risks before computing comparable-pair C-indices and writes `model_subset_per_seed.tsv`, `paired_per_seed.tsv` and the original comparison summaries for plotting. Seed SDs describe training variation. `subsetwise_best_descriptive.tsv` is the descriptive test-set best envelope, not a validation-selected model. The three published-model adaptations are separate from these nine families.
