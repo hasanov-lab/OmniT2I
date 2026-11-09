@@ -13,6 +13,9 @@ authors = [{name = "Peng Li"}]
 dependencies = ["torch>=2.0", "numpy>=1.24", "pandas>=2.0", "scipy>=1.10"]
 
 [project.scripts]
+omnit2i-prepare-scanb-clinical = "omnit2i.external:clinical_main"
+omnit2i-predict-external-rna = "omnit2i.external:main"
+omnit2i-summarize-external-rna = "omnit2i.external:summary_main"
 omnit2i-aggregate-subsets = "omnit2i.analysis.aggregation:main"
 omnit2i-split-cohort = "omnit2i.preprocessing.splits:main"
 omnit2i-prepare-targets = "omnit2i.preprocessing.feature_targets:main"

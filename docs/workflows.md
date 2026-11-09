@@ -252,3 +252,27 @@ Outputs are `predictions.tsv.gz` (30 rows per test patient, with raw and calibra
 
 Selective routes fuse the original sources and only the selected virtual targets; unfilled modalities remain masked. Every virtual target is inferred independently from the original sources. The 30 full-fill routes reuse their original predictions exactly. The selective archive preserves `risk_measured` as the historical all-five reference and adds `risk_measured_matched` for the manuscript's measured source-plus-selected-target reference, identified by `measured_subset`. Each reference reuses its corresponding measured-subset prediction and validation calibration.
 
+
+
+## Frozen external RNA evaluation
+
+Install `pip install '.[analysis]'`. Supply the cohort's logged gene-by-sample expression TSV and a clinical CSV with `patient,sample,cancer_type,time,event` (OS in days). Use the deposited logged expression scales for CPTAC; do not log them again. `sample` must match an expression column. Cohort download sources are linked in the main README.
+
+```bash
+omnit2i-predict-external-rna --expression external.tsv.gz --clinical clinical.csv \
+  --mapping gene_mapping.csv --preprocessing PREPARED/rna/preprocessing.npz \
+  --checkpoint TRAINED/C/model.pt --output-dir EXTERNAL/seed_101/fold0
+omnit2i-summarize-external-rna --input-root EXTERNAL --output-dir EXTERNAL_SUMMARY
+```
+
+Run inference separately for all five seeds and five folds before summarizing. Each member uses its saved TCGA selected/invariant genes, preprocessing, snake layout and natural-availability validation risk standardization. No external outcomes fit preprocessing or models. The summary averages 25 standardized risks and retains the original 2,000 patient bootstrap draws (seed 101). Optional boolean `endpoint_flag`, `rna_timing_complete`, and `rna_any_after_origin` clinical columns retain the original endpoint and timing sensitivity populations.
+
+The mapping CSV uses `saved_gene_symbol,source_gene_id,match_status`, optionally `seed,fold`. Include every saved selected/invariant gene, including unresolved ones; only `exact` and `safe-renaming` one-to-one mappings are used. Rename historical `source_ensembl_id` or `source_gene_symbol` to `source_gene_id`. Omit the mapping for exact symbol matches. Missing selected genes retain their fixed positions and are filled with saved gamma-corrected training means; invariant medians use present invariant genes. `input_coverage.csv` records coverage. Do not infer complete biological coverage from filled inputs.
+
+For SCAN-B, prepare original patients from the GSE96058 series matrices and pass the deposited expression CSV with `--scanb`:
+
+```bash
+omnit2i-prepare-scanb-clinical --series-matrix GSE96058-*_series_matrix.txt.gz --output scanb_clinical.csv
+```
+
+Replicates ending in `repl` are excluded after checking patient-level outcome agreement. Expression is inverted from `log2(FPKM + 0.1)` and converted to `log2(TPM + 1)` using all deposited genes in the TPM denominator, before selecting model genes. Model weights will be released after publication.
