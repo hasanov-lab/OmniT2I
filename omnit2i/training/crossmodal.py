@@ -15,7 +15,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from omnit2i.models import (
-    MODALITIES, CNNSpatialProjectorEncoder, CNNSpatialGlobalEncoder,
+    MODALITIES, CNNSpatialProjectorEncoder, CNNSpatialGlobalEncoder, VectorEncoder,
     OmicsHEEndToEndCox, FiveModalCrossModalMultitaskModel,
     TargetConditionedCrossModalTranslator,
 )
@@ -286,7 +286,9 @@ def configure_joint_trainable_parameters(
     # (Conv2d + BatchNorm affine parameters). BatchNorm running statistics stay
     # fixed through freeze_batchnorm_statistics() in every training epoch.
     for modality, encoder in enumerate(model.survival.encoders[:4]):
-        if isinstance(encoder, CNNSpatialProjectorEncoder):
+        if isinstance(encoder, VectorEncoder):
+            trainable_modules = [encoder.output]
+        elif isinstance(encoder, CNNSpatialProjectorEncoder):
             trainable_modules = list(encoder.trunk.network.children())[8:]
         else:
             trainable_modules = list(encoder.network.children())[8:]

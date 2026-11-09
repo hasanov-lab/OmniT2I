@@ -1,6 +1,7 @@
 """Model components for OmniT2I."""
 
 from .constants import MODALITIES
+from .vector import VectorEncoder
 from .encoders import (
     CNVImageEncoder,
     CNVT2ICoxModel,
@@ -20,7 +21,7 @@ from .target_conditioned_cross_modal_translator import (
 )
 
 __all__ = [
-    "MODALITIES", "CNVImageEncoder", "CNVT2ICoxModel",
+    "MODALITIES", "CNVImageEncoder", "CNVT2ICoxModel", "VectorEncoder",
     "CNNSpatialProjectorEncoder", "CNNSpatialGlobalEncoder",
     "HEEmbeddingAdapter", "HEOnlyCox", "MaskedRNAImageAutoencoder",
     "MaskedGatedFusion", "SharedProjectionFusion", "paired_alignment_mse",

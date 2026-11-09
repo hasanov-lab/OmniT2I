@@ -14,7 +14,7 @@ from .multimodal_data import MultimodalData, load_multimodal_data
 from .rna import set_seed
 
 
-def build_fusion_model(seed: int, dropout: float, latent_dim: int, fusion_mode: str) -> OmicsHEEndToEndCox:
+def build_fusion_model(seed: int, dropout: float, latent_dim: int, fusion_mode: str, *, encoder_architecture: str = "masked_cnn_spatial_projector") -> OmicsHEEndToEndCox:
     """Keep the production H&E/fusion initialization when replacing pooled encoders."""
     set_seed(seed)
     reference = OmicsHEEndToEndCox(dropout=dropout, latent_dim=latent_dim, fusion_mode=fusion_mode)
@@ -25,7 +25,7 @@ def build_fusion_model(seed: int, dropout: float, latent_dim: int, fusion_mode: 
     set_seed(seed)
     model = OmicsHEEndToEndCox(
         dropout=dropout, latent_dim=latent_dim, fusion_mode=fusion_mode,
-        **{f"{name}_encoder_architecture": "masked_cnn_spatial_projector" for name in MODALITIES[:4]},
+        **{f"{name}_encoder_architecture": encoder_architecture for name in MODALITIES[:4]},
     )
     model.encoders[4].load_state_dict(he_state)
     model.fusion.load_state_dict(fusion_state)
@@ -129,6 +129,7 @@ def main() -> None:
     for name in MODALITIES[:4]:
         parser.add_argument(f"--{name}-checkpoint", type=Path, required=True)
     parser.add_argument("--fusion-mode", choices=("gated", "mean"), default="gated")
+    parser.add_argument("--encoder-architecture", choices=("masked_cnn_spatial_projector", "mlp_matched", "mlp_wide"), default="masked_cnn_spatial_projector")
     parser.add_argument("--latent-dim", type=int, default=96)
     parser.add_argument("--dropout", type=float, default=0.25)
     parser.add_argument("--epochs", type=int, default=180)
@@ -155,12 +156,12 @@ def main() -> None:
         if not np.isfinite(getattr(args, name)) or getattr(args, name) < 0:
             raise ValueError(f"{name} must be finite and nonnegative")
     data = load_multimodal_data(args.cohort, [getattr(args, name) for name in MODALITIES], he_clip=args.he_clip)
-    model = build_fusion_model(args.seed, args.dropout, args.latent_dim, args.fusion_mode)
+    model = build_fusion_model(args.seed, args.dropout, args.latent_dim, args.fusion_mode, encoder_architecture=args.encoder_architecture)
     load_molecular_encoders(model, [getattr(args, f"{name}_checkpoint") for name in MODALITIES[:4]])
     model, metadata, history = fit_fusion(model, data, args)
     risk, weights = predict_survival(model, data, args.encoder_chunk_size, args.device)
     calibration = fit_risk_calibration(risk, data.cohort["partition"].eq("validation").to_numpy())
-    model_kwargs = {"dropout": args.dropout, "latent_dim": args.latent_dim, "fusion_mode": args.fusion_mode, **{f"{name}_encoder_architecture": "masked_cnn_spatial_projector" for name in MODALITIES[:4]}}
+    model_kwargs = {"dropout": args.dropout, "latent_dim": args.latent_dim, "fusion_mode": args.fusion_mode, **{f"{name}_encoder_architecture": args.encoder_architecture for name in MODALITIES[:4]}}
     args.output_dir.mkdir(parents=True, exist_ok=False)
     torch.save({
         "model_state": {key: value.detach().cpu() for key, value in model.state_dict().items()},

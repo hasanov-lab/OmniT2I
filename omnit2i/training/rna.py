@@ -12,7 +12,7 @@ from torch.nn import functional as F
 from sksurv.metrics import concordance_index_censored
 
 from omnit2i.data import validate_cohort
-from omnit2i.models import CNVT2ICoxModel, CNNSpatialProjectorEncoder, MaskedRNAImageAutoencoder
+from omnit2i.models import CNVT2ICoxModel, CNNSpatialProjectorEncoder, MaskedRNAImageAutoencoder, VectorEncoder
 from omnit2i.preprocessing.cnv_t2i import snake_pixel_indices
 
 
@@ -24,15 +24,18 @@ def set_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
-def build_spatial_cox_model(seed: int, dropout: float, device: str = "cpu", *, grid_height: int = 45, grid_width: int = 45) -> CNVT2ICoxModel:
+def build_spatial_cox_model(seed: int, dropout: float, device: str = "cpu", *, grid_height: int = 45, grid_width: int = 45, encoder_architecture: str = "masked_cnn_spatial_projector") -> CNVT2ICoxModel:
     """Preserve the production spatial encoder, common-head initialization, and RNG stream."""
     set_seed(seed)
     model = CNVT2ICoxModel(in_channels=3, dropout=dropout)
     cpu_state = torch.get_rng_state().clone()
     cuda_states = torch.cuda.get_rng_state_all() if torch.cuda.is_available() else []
     set_seed(seed)
-    encoder = CNNSpatialProjectorEncoder(grid_height=grid_height, grid_width=grid_width)
-    encoder.trunk.load_state_dict(model.encoder.state_dict())
+    if encoder_architecture == "masked_cnn_spatial_projector":
+        encoder = CNNSpatialProjectorEncoder(grid_height=grid_height, grid_width=grid_width)
+        encoder.trunk.load_state_dict(model.encoder.state_dict())
+    else:
+        encoder = VectorEncoder(encoder_architecture, grid_height, grid_width)
     model.encoder = encoder
     torch.set_rng_state(cpu_state)
     if cuda_states:
@@ -133,7 +136,10 @@ def train_molecular(images: np.ndarray, cohort: pd.DataFrame, n_features: int, a
     # Fail before fitting if validation cannot select a survival checkpoint.
     concordance_index_censored(val_event, val_time, np.zeros(validation.sum()))
     core_images = torch.from_numpy(images[core])
-    model = build_spatial_cox_model(args.seed, args.dropout, args.device, grid_height=side, grid_width=side)
+    architecture = getattr(args, "encoder_architecture", "masked_cnn_spatial_projector")
+    if architecture != "masked_cnn_spatial_projector" and n_features != (217 if side == 17 else 2000):
+        raise ValueError("Vector controls require the original 2000/217 selected features")
+    model = build_spatial_cox_model(args.seed, args.dropout, args.device, grid_height=side, grid_width=side, encoder_architecture=architecture)
     pretrain_history = []
     if args.pretrain_epochs:
         autoencoder = MaskedRNAImageAutoencoder(model.encoder, n_features).to(args.device)
@@ -157,7 +163,7 @@ def train_molecular(images: np.ndarray, cohort: pd.DataFrame, n_features: int, a
             pretrain_history.append({"epoch": epoch, "masked_reconstruction_loss": float(np.mean(losses))})
         encoder_state = {key: value.detach().cpu().clone() for key, value in autoencoder.encoder.state_dict().items()}
         del autoencoder, optimizer
-        model = build_spatial_cox_model(args.seed, args.dropout, args.device, grid_height=side, grid_width=side)
+        model = build_spatial_cox_model(args.seed, args.dropout, args.device, grid_height=side, grid_width=side, encoder_architecture=architecture)
         model.encoder.load_state_dict(encoder_state)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     core_images = core_images.to(args.device)
@@ -190,7 +196,7 @@ def train_molecular(images: np.ndarray, cohort: pd.DataFrame, n_features: int, a
     if not np.isfinite(risk).all() or not np.isfinite(std) or std < 1e-8:
         raise ValueError("Predictions are non-finite or validation risk scale is degenerate")
     return {
-        "checkpoint": {"model_state": best_state, "architecture": "cnn_spatial_projector", "modality": modality, "grid_height": side, "grid_width": side, "n_features": n_features, "dropout": args.dropout, "seed": args.seed, "best_epoch": best_epoch, "validation_c_index": best_score, "risk_mean": mean, "risk_std": std},
+        "checkpoint": {"model_state": best_state, "architecture": "cnn_spatial_projector" if architecture == "masked_cnn_spatial_projector" else architecture, "modality": modality, "grid_height": side, "grid_width": side, "n_features": n_features, "dropout": args.dropout, "seed": args.seed, "best_epoch": best_epoch, "validation_c_index": best_score, "risk_mean": mean, "risk_std": std},
         "risk_raw": risk, "risk": (risk - mean) / std, "embeddings": embeddings,
         "pretraining_history": pd.DataFrame(pretrain_history, columns=["epoch", "masked_reconstruction_loss"]), "history": pd.DataFrame(history),
     }
@@ -208,6 +214,7 @@ def main() -> None:
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--pretrain-epochs", type=int, default=80)
     parser.add_argument("--input-ablation", choices=("no_c2", "no_c3"))
+    parser.add_argument("--encoder-architecture", choices=("masked_cnn_spatial_projector", "mlp_matched", "mlp_wide"), default="masked_cnn_spatial_projector")
     parser.add_argument("--epochs", type=int, default=180)
     parser.add_argument("--patience", type=int, default=25)
     parser.add_argument("--pretrain-batch-size", type=int, default=256)

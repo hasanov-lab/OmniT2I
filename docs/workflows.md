@@ -288,6 +288,8 @@ The variants are `no_pretraining`, `no_c2`, `no_c3`, `random_layout`, `no_risk_c
 
 Component ablations reuse the main Stage A. `no_risk_consistency` reuses main Stage B and trains only C. `mean_fusion` and `no_modality_dropout` train B/C with their respective original changes. For `simplified`, pass the **mean-fusion** ablation directory as `--reference-dir`: it reuses that Stage B and trains C with zero risk-consistency weight. Outputs use the existing A/B/C checkpoint formats. No preprocessing is refitted and no new patient split is generated.
 
+The same command accepts the original vector controls `mlp_matched` and `mlp_wide`. They replace only the four molecular CNN encoders and retrain A/B/C on the same rendered three-channel inputs, including the RNA snake layout. The selected-feature counts remain 2,000 for RNA/CNV/methylation and 217 for RPPA. The matched hidden widths are 40/106; the wide widths are 96/106. Masked pretraining, the common risk head, H&E adapter, fusion, translation objectives and patient roles are retained. During Stage C, only each vector encoder's final 96-dimensional projection is unfrozen; input blocks and BatchNorm statistics stay fixed. Frozen subset evaluation and OOF aggregation use the existing commands and saved checkpoint architecture fields.
+
 ## Conventional comparison models
 
 Install `pip install '.[comparisons]'`. These nine specialists use conventional one-dimensional feature blocks: `deepsurv`, `enet_cox`, `lasso_cox`, `xgboost_cox`, `rsf`, `survival_gbm`, `extra_survival_trees`, `coxboost`, and `survival_svm`. RNA retains the original outer-training variance selection and z-scores **without invariant correction**; the other four blocks reuse the main prepared targets.

@@ -47,6 +47,8 @@ def train_fold(prepared, output, seed, fold, device, *, variant=None, reference=
     for name, path in zip(MODALITIES[:4], paths[:4]):
         destination = (reference if reuse_a else output) / "A" / name
         extra = ["--pretrain-epochs", "0"] if variant == "no_pretraining" else (["--input-ablation", variant] if variant in {"no_c2", "no_c3"} else [])
+        if variant in {"mlp_matched", "mlp_wide"}:
+            extra += ["--encoder-architecture", variant]
         if not reuse_a:
             subprocess.run([
                 sys.executable, "-m", "omnit2i.training.rna", "--modality", name,
@@ -58,6 +60,8 @@ def train_fold(prepared, output, seed, fold, device, *, variant=None, reference=
     for name, path in zip(MODALITIES, paths):
         data += [f"--{name}", str(path)]
     b_extra = ["--fusion-mode", "mean"] if variant == "mean_fusion" else (["--modality-dropout", "0"] if variant == "no_modality_dropout" else [])
+    if variant in {"mlp_matched", "mlp_wide"}:
+        b_extra += ["--encoder-architecture", variant]
     if not reuse_b:
         subprocess.run([
             sys.executable, "-m", "omnit2i.training.fusion", *data, *checkpoints,

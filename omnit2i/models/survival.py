@@ -7,6 +7,7 @@ from torch import nn
 from torch.utils.checkpoint import checkpoint
 
 from .constants import MODALITIES
+from .vector import VectorEncoder
 from .encoders import (
     CNVImageEncoder, CNNSpatialProjectorEncoder, CNNSpatialGlobalEncoder,
     HEEmbeddingAdapter,
@@ -36,6 +37,8 @@ class OmicsHEEndToEndCox(nn.Module):
             rna_encoder = CNNSpatialProjectorEncoder()
         elif rna_encoder_architecture == "masked_cnn_spatial_global":
             rna_encoder = CNNSpatialGlobalEncoder()
+        elif rna_encoder_architecture in ("mlp_matched", "mlp_wide"):
+            rna_encoder = VectorEncoder(rna_encoder_architecture)
         else:
             raise ValueError(
                 f"Unsupported RNA encoder architecture: {rna_encoder_architecture}"
@@ -44,6 +47,8 @@ class OmicsHEEndToEndCox(nn.Module):
             cnv_encoder: nn.Module = CNVImageEncoder(3)
         elif cnv_encoder_architecture == "masked_cnn_spatial_projector":
             cnv_encoder = CNNSpatialProjectorEncoder(grid_height=45, grid_width=45)
+        elif cnv_encoder_architecture in ("mlp_matched", "mlp_wide"):
+            cnv_encoder = VectorEncoder(cnv_encoder_architecture)
         else:
             raise ValueError(
                 f"Unsupported CNV encoder architecture: {cnv_encoder_architecture}"
@@ -55,6 +60,8 @@ class OmicsHEEndToEndCox(nn.Module):
                 grid_height=17,
                 grid_width=17,
             )
+        elif protein_encoder_architecture in ("mlp_matched", "mlp_wide"):
+            protein_encoder = VectorEncoder(protein_encoder_architecture, 17, 17)
         else:
             raise ValueError(
                 "Unsupported protein encoder architecture: "
@@ -64,6 +71,8 @@ class OmicsHEEndToEndCox(nn.Module):
             methylation_encoder: nn.Module = CNVImageEncoder(3)
         elif methylation_encoder_architecture == "masked_cnn_spatial_projector":
             methylation_encoder = CNNSpatialProjectorEncoder()
+        elif methylation_encoder_architecture in ("mlp_matched", "mlp_wide"):
+            methylation_encoder = VectorEncoder(methylation_encoder_architecture)
         else:
             raise ValueError(
                 "Unsupported methylation encoder architecture: "
@@ -97,7 +106,7 @@ class OmicsHEEndToEndCox(nn.Module):
     def freeze_batchnorm_statistics(self) -> None:
         for encoder in self.encoders:
             for module in encoder.modules():
-                if isinstance(module, nn.BatchNorm2d):
+                if isinstance(module, (nn.BatchNorm1d, nn.BatchNorm2d)):
                     module.eval()
 
     @staticmethod

@@ -9,7 +9,7 @@ from omnit2i.models import MODALITIES
 from omnit2i.preprocessing.cnv_t2i import snake_pixel_indices
 
 VARIANTS = ("no_pretraining", "no_c2", "no_c3", "random_layout", "no_risk_consistency",
-            "mean_fusion", "no_modality_dropout", "simplified")
+            "mean_fusion", "no_modality_dropout", "simplified", "mlp_matched", "mlp_wide")
 LAYOUT_SEED = 20261014
 
 

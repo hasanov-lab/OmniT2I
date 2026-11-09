@@ -85,6 +85,8 @@ def test_ablation_training_reuses_correct_stages_and_shared_inputs(tmp_path, mon
         assert commands[0][commands[0].index("--fusion-mode") + 1] == "mean"
     if variant == "no_modality_dropout":
         assert all(argv[argv.index("--modality-dropout") + 1] == "0" for argv in commands)
+    if variant in {"mlp_matched", "mlp_wide"}:
+        assert all(argv[argv.index("--encoder-architecture") + 1] == variant for argv in commands[:5])
     if variant in {"no_c2", "no_c3", "random_layout"}:
         with np.load(output / "inputs/rna/images.npz") as saved:
             if variant in {"no_c2", "no_c3"}:
