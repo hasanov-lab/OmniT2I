@@ -78,7 +78,21 @@ The patients table is sorted by patient and contains `patient,cancer_type,time,e
 
 ## Figure 6 inputs
 
-`prepare_ablation_sources.R` accepts these saved result tables:
+Generate the ablation tables from the 25 public training outputs per variant:
+
+```bash
+omnit2i-aggregate-ablations --master WORK/Inputs/master_folds.csv \
+  --reference-training TRAINED --training-root ABLATIONS \
+  --variants no_pretraining no_c2 no_c3 random_layout no_risk_consistency mean_fusion no_modality_dropout simplified \
+  --reference-evaluation EVALUATION_SUMMARY --evaluation-root ABLATION_EVALUATION_SUMMARIES \
+  --output-dir WORK/Inputs/ablations
+```
+
+`TRAINED` contains `seed_<seed>/fold<fold>/C/`; `ABLATIONS` contains `VARIANT/seed_<seed>/fold<fold>/C/`. The evaluation roots contain the corresponding `omnit2i-aggregate-subsets` outputs, with one subdirectory per variant under `ABLATION_EVALUATION_SUMMARIES`. The optional evaluation arguments must be supplied together to produce the frozen measured/selective pairs. The same command also accepts `mlp_matched` and `mlp_wide`.
+
+Training summaries pool the five OOF folds per seed. Natural-availability risks use the saved validation calibration; complete-case risks use the original outcome-free standardization on complete-case validation patients, recovered from `predictions.csv`. Patients, clinical outcomes and folds are checked against the supplied master. Raw merged and within-fold pair-weighted C-indices remain diagnostics. Differences are full minus ablation, with sample SD over the five seeds. No model is fitted by this command.
+
+The command writes the following inputs accepted by `prepare_ablation_sources.R`:
 
 | `Inputs/ablations/` filename | Saved analysis |
 | --- | --- |

@@ -1,1 +1,1 @@
-"""The nine conventional specialist families used in the manuscript."""
+"""Conventional and published-family specialists used in the manuscript."""

@@ -60,7 +60,8 @@ def prepared_inputs(root):
 
 
 @pytest.mark.parametrize("variant,calls", [("no_pretraining", 6), ("no_c2", 6), ("no_c3", 6), ("random_layout", 6),
-    ("no_risk_consistency", 1), ("mean_fusion", 2), ("no_modality_dropout", 2), ("simplified", 1)])
+    ("no_risk_consistency", 1), ("mean_fusion", 2), ("no_modality_dropout", 2), ("simplified", 1),
+    ("mlp_matched", 6), ("mlp_wide", 6)])
 def test_ablation_training_reuses_correct_stages_and_shared_inputs(tmp_path, monkeypatch, variant, calls):
     prepared = prepared_inputs(tmp_path / "prepared")
     reference = tmp_path / "reference"

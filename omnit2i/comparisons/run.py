@@ -1,4 +1,4 @@
-"""Train the manuscript's nine complete-case specialists on shared patient roles."""
+"""Train the manuscript's complete-case specialists on shared patient roles."""
 
 from __future__ import annotations
 
