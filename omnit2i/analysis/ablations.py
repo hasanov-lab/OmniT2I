@@ -3,6 +3,7 @@
 import argparse
 import json
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import numpy as np
 import pandas as pd
@@ -284,24 +285,28 @@ def export_main():
     master[FLAGS + ["event"]] = master[FLAGS + ["event"]].astype(bool)
     complete = master[FLAGS].all(axis=1)
     records = []
-    args.output_dir.mkdir(parents=True, exist_ok=False)
-    for seed in SEEDS:
-        folds = []
-        for fold in range(5):
-            frame = read_training_fold(args.training_root, master, seed, fold)
-            frame["event"] = frame.event.astype(bool)  # R readers expect True/False, as in the original OOF files.
-            folder = args.output_dir / "oof" / f"seed_{seed}" / f"fold{fold}"
-            folder.mkdir(parents=True)
-            frame.to_csv(folder / "survival_oof_predictions.tsv.gz", sep="\t", index=False)
-            folds.append(frame)
-        oof = pd.concat(folds, ignore_index=True)
-        require(oof.patient.is_unique, "Duplicate OOF patients")
-        records.extend(survival_metrics_for_seed(oof, seed, len(master), int(complete.sum())))
-        print(f"Exported survival OOF: seed {seed}", flush=True)
-    master.to_csv(args.output_dir / "master_folds.csv", index=False)
-    master.loc[complete, ["patient", "cancer_type", "time", "event", "fold"]].sort_values("patient").to_csv(
-        args.output_dir / "complete_case_patients.tsv", sep="\t", index=False)
-    pd.DataFrame(records).to_csv(args.output_dir / "performance_per_seed.tsv", sep="\t", index=False)
+    args.output_dir.parent.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(dir=args.output_dir.parent, prefix=f".{args.output_dir.name}-") as temporary:
+        output = Path(temporary) / args.output_dir.name
+        output.mkdir()
+        for seed in SEEDS:
+            folds = []
+            for fold in range(5):
+                frame = read_training_fold(args.training_root, master, seed, fold)
+                frame["event"] = frame.event.astype(bool)  # R readers expect True/False, as in the original OOF files.
+                folder = output / "oof" / f"seed_{seed}" / f"fold{fold}"
+                folder.mkdir(parents=True)
+                frame.to_csv(folder / "survival_oof_predictions.tsv.gz", sep="\t", index=False)
+                folds.append(frame)
+            oof = pd.concat(folds, ignore_index=True)
+            require(oof.patient.is_unique, "Duplicate OOF patients")
+            records.extend(survival_metrics_for_seed(oof, seed, len(master), int(complete.sum())))
+            print(f"Exported survival OOF: seed {seed}", flush=True)
+        master.to_csv(output / "master_folds.csv", index=False)
+        master.loc[complete, ["patient", "cancer_type", "time", "event", "fold"]].sort_values("patient").to_csv(
+            output / "complete_case_patients.tsv", sep="\t", index=False)
+        pd.DataFrame(records).to_csv(output / "performance_per_seed.tsv", sep="\t", index=False)
+        output.rename(args.output_dir)
 
 
 def main():

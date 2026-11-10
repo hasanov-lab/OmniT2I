@@ -110,6 +110,14 @@ def test_survival_export_connects_stage_c_to_ipcw_and_r_inputs(tmp_path, monkeyp
     training_tree(trained, master, -1)
     monkeypatch.setattr("sys.argv", ["export", "--master", str(tmp_path / "master.csv"),
         "--training-root", str(trained), "--output-dir", str(output)])
+    options = trained / "seed_101/fold1/C/options.json"
+    saved_options = options.read_bytes()
+    options.unlink()
+    with pytest.raises(FileNotFoundError):
+        ablations.export_main()
+    assert not output.exists()
+    assert not list(tmp_path.glob(".Inputs-*"))
+    options.write_bytes(saved_options)
     ablations.export_main()
     paths = list(output.glob("oof/seed_*/fold*/survival_oof_predictions.tsv.gz"))
     assert len(paths) == 25
