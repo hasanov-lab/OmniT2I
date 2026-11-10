@@ -269,6 +269,41 @@ def frozen_tables(reference, roots):
     return tables
 
 
+def export_main():
+    """Export public Stage C outputs for the manuscript survival analyses."""
+    parser = argparse.ArgumentParser(description=export_main.__doc__)
+    parser.add_argument("--master", type=Path, required=True)
+    parser.add_argument("--training-root", type=Path, required=True, help="seed_SEED/foldFOLD/C outputs")
+    parser.add_argument("--output-dir", type=Path, required=True, help="New WORK/Inputs directory")
+    args = parser.parse_args()
+    if args.output_dir.exists():
+        raise FileExistsError(args.output_dir)
+    master = pd.read_csv(args.master, dtype={"patient": str})
+    require(master.patient.is_unique and set(master.fold) == set(range(5)), "Master needs unique patients and all five folds")
+    require(master[FLAGS + ["event"]].isin([True, False]).all().all(), "Invalid master event/availability")
+    master[FLAGS + ["event"]] = master[FLAGS + ["event"]].astype(bool)
+    complete = master[FLAGS].all(axis=1)
+    records = []
+    args.output_dir.mkdir(parents=True, exist_ok=False)
+    for seed in SEEDS:
+        folds = []
+        for fold in range(5):
+            frame = read_training_fold(args.training_root, master, seed, fold)
+            frame["event"] = frame.event.astype(bool)  # R readers expect True/False, as in the original OOF files.
+            folder = args.output_dir / "oof" / f"seed_{seed}" / f"fold{fold}"
+            folder.mkdir(parents=True)
+            frame.to_csv(folder / "survival_oof_predictions.tsv.gz", sep="\t", index=False)
+            folds.append(frame)
+        oof = pd.concat(folds, ignore_index=True)
+        require(oof.patient.is_unique, "Duplicate OOF patients")
+        records.extend(survival_metrics_for_seed(oof, seed, len(master), int(complete.sum())))
+        print(f"Exported survival OOF: seed {seed}", flush=True)
+    master.to_csv(args.output_dir / "master_folds.csv", index=False)
+    master.loc[complete, ["patient", "cancer_type", "time", "event", "fold"]].sort_values("patient").to_csv(
+        args.output_dir / "complete_case_patients.tsv", sep="\t", index=False)
+    pd.DataFrame(records).to_csv(args.output_dir / "performance_per_seed.tsv", sep="\t", index=False)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--reference-training", type=Path, required=True)

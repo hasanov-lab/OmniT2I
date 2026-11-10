@@ -95,3 +95,41 @@ def test_frozen_pairing_direction_sd_and_missing_routes(tmp_path):
     pd.read_csv(path, sep="\t").iloc[1:].to_csv(path, sep="\t", index=False)
     with pytest.raises(ValueError, match="Incomplete"):
         ablations.frozen_tables(full, {"no_modality_dropout": other})
+
+
+def test_survival_export_connects_stage_c_to_ipcw_and_r_inputs(tmp_path, monkeypatch):
+    from omnit2i.analysis import ipcw
+
+    n = 100
+    master = pd.DataFrame(dict(patient=[f"P{i}" for i in range(n)], cancer_type=np.where(np.arange(n) % 2, "A", "B"),
+                               time=np.repeat(np.arange(n // 5) * 200. + 1, 5), event=1, fold=np.arange(n) % 5))
+    master[ablations.FLAGS] = True
+    master.loc[np.arange(n) % 7 == 0, "has_rna"] = False
+    master.to_csv(tmp_path / "master.csv", index=False)
+    trained, output = tmp_path / "trained", tmp_path / "Inputs"
+    training_tree(trained, master, -1)
+    monkeypatch.setattr("sys.argv", ["export", "--master", str(tmp_path / "master.csv"),
+        "--training-root", str(trained), "--output-dir", str(output)])
+    ablations.export_main()
+    paths = list(output.glob("oof/seed_*/fold*/survival_oof_predictions.tsv.gz"))
+    assert len(paths) == 25
+    for path in paths:
+        assert path.read_bytes()[:2] == b"\x1f\x8b"
+        frame = pd.read_csv(path, sep="\t")
+        assert frame.event.dtype == frame.complete_case.dtype == bool
+        assert frame.event.all()
+        assert frame.loc[frame.complete_case, "risk_score_complete_case_calibrated"].notna().all()
+    performance = pd.read_csv(output / "performance_per_seed.tsv", sep="\t")
+    assert len(performance) == 10 and "variant" not in performance
+    assert performance.raw_merged_pooled_c_index.eq(1).all()
+    assert performance.within_fold_pooled_c_index_pair_weighted.eq(1).all()
+    patients = pd.read_csv(output / "complete_case_patients.tsv", sep="\t")
+    expected = master.loc[master.has_rna, ["patient", "cancer_type", "time", "event", "fold"]].sort_values("patient").reset_index(drop=True)
+    expected["event"] = expected.event.astype(bool)
+    pd.testing.assert_frame_equal(patients, expected)
+    with pytest.raises(FileExistsError):
+        ablations.export_main()
+    monkeypatch.setattr("sys.argv", ["ipcw", "--master-folds", str(output / "master_folds.csv"),
+        "--oof-root", str(output / "oof"), "--output-dir", str(tmp_path / "auc")])
+    ipcw.main()
+    assert (tmp_path / "auc/per_seed.tsv").is_file()

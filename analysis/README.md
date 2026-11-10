@@ -1,18 +1,26 @@
 # Analyses of the final saved predictions
 
-These scripts organize the manuscript analyses without fitting or changing a prediction model. Install `pip install '.[analysis]'`. The R scripts require `Rcpp` and `survival`; the plotting packages are listed in `figures/README.md`. `provenance.tsv` lists the original implementations.
+These scripts organize the manuscript analyses without fitting or changing a prediction model. Install `pip install '.[analysis]'`. The Figure 3 bootstrap retains the original 32-cancer cohort check. The R scripts require `Rcpp` and `survival`; the plotting packages are listed in `figures/README.md`. `provenance.tsv` lists the original implementations.
 
 Use a separate working directory. The scripts write derived tables to `Source_Data/` and `Analysis/`; rerunning replaces their generated tables. Patient-level predictions and tables remain local and are not bundled here.
 
 ## Survival, bootstrap and ROC
 
-Prepare these inputs:
+Export the 25 public Stage C outputs (`TRAINED/seed_<seed>/fold<fold>/C/`) into a new `WORK/Inputs` directory:
+
+```bash
+omnit2i-export-survival --master master_folds.csv --training-root TRAINED --output-dir WORK/Inputs
+```
+
+The command reuses saved validation predictions to recover natural-availability and complete-case risk calibration; it does not fit a model. It writes genuine gzip OOF files with boolean event fields for the R readers, the master cohort, sorted `complete_case_patients.tsv`, and full-model-only `performance_per_seed.tsv` (no ablation rows).
+
+The resulting inputs are:
 
 | Working-directory path | Content |
 | --- | --- |
 | `Inputs/master_folds.csv` | Final five-modality master cohort, with `patient,cancer_type,time,event,fold,has_rna,has_cnv,has_rppa,has_methylation,has_he` |
-| `Inputs/oof/seed_<seed>/fold<fold>/survival_oof_predictions.tsv.gz` | Final Stage C test predictions, including calibrated natural-availability and complete-case risks |
-| `Inputs/performance_per_seed.tsv` | Saved natural-availability and complete-case pooled/within-cancer C-indices per seed |
+| `Inputs/oof/seed_<seed>/fold<fold>/survival_oof_predictions.tsv.gz` | Exported Stage C test predictions, including calibrated natural-availability and complete-case risks |
+| `Inputs/performance_per_seed.tsv` | Exported natural-availability and complete-case pooled/within-cancer C-indices per seed |
 
 The five seeds are 101, 202, 303, 404 and 505; folds are 0–4. Use follow-up times in days and the original boolean event/availability fields.
 
@@ -69,12 +77,13 @@ The first command generates Figure 4, Figure 5, Extended Data 2 and Extended Dat
 For the four prespecified RNA-start paired confidence intervals:
 
 ```bash
-python analysis/bootstrap_measured_gains.py --patients complete_case_patients.tsv \
-  --per-seed measured_31_subsets_per_seed.tsv --predictions-root fill_all \
+python analysis/bootstrap_measured_gains.py --patients WORK/Inputs/complete_case_patients.tsv \
+  --per-seed WORK/Inputs/subsets/measured/omnit2i_all_31_subsets_per_seed.tsv \
+  --predictions-root EVALUATIONS \
   --output-dir WORK/Analysis/measured
 ```
 
-The patients table is sorted by patient and contains `patient,cancer_type,time,event,fold`. The prediction root contains `seed_<seed>/fold<fold>/predictions.tsv.gz`, with the same patient fields plus `seed,source_subset,risk_source_only`. The command retains 2,000 cancer-stratified paired draws, seed 20261019, all 75 measured transition summaries, and the original comparable-pair tie rule. `omnit2i.analysis.paired_bootstrap` also exposes the original shared-patient kernels used by paired model comparisons. Intervals condition on saved predictions and do not include model refitting uncertainty.
+`omnit2i-export-survival` writes the patients table, and `omnit2i-aggregate-subsets` writes the per-seed measured summary. `EVALUATIONS` is the raw output root passed to that aggregation command, not its summary directory. The patients table is sorted by patient and contains `patient,cancer_type,time,event,fold`. The prediction root contains `seed_<seed>/fold<fold>/predictions.tsv.gz`, with the same patient fields plus `seed,source_subset,risk_source_only`. This manuscript-specific bootstrap requires the original 5,605 complete cases and 1,546 events. The command retains 2,000 cancer-stratified paired draws, seed 20261019, all 75 measured transition summaries, and the original comparable-pair tie rule. `omnit2i.analysis.paired_bootstrap` also exposes the original shared-patient kernels used by paired model comparisons. Intervals condition on saved predictions and do not include model refitting uncertainty.
 
 ## Figure 6 inputs
 

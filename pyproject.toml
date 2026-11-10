@@ -13,6 +13,7 @@ authors = [{name = "Peng Li"}]
 dependencies = ["torch>=2.0", "numpy>=1.24", "pandas>=2.0", "scipy>=1.10"]
 
 [project.scripts]
+omnit2i-export-survival = "omnit2i.analysis.ablations:export_main"
 omnit2i-aggregate-ablations = "omnit2i.analysis.ablations:main"
 omnit2i-prepare-comparison-targets = "omnit2i.comparisons.prepare:main"
 omnit2i-train-comparison = "omnit2i.comparisons.run:main"
