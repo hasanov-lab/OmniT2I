@@ -13,7 +13,7 @@ from omnit2i.preprocessing.cnv_t2i import (
 from omnit2i.preprocessing.cox_score_corrected import cox_score_z
 from omnit2i.preprocessing.methylation_t2i import beta_to_m_value, render_option2
 from omnit2i.preprocessing.rna import fit_rna_preprocessing, main, transform_rna
-from omnit2i.preprocessing.rna_t2i import render_option2 as render_rna_option2, sample_gamma
+from omnit2i.preprocessing.rna_t2i import render_option2 as render_rna_option2, sample_gamma, load_expression
 from omnit2i.preprocessing.rppa_t2i import fit_impute_standardize, transform_impute_standardize
 
 
@@ -149,7 +149,13 @@ def test_protein_imputation_and_methylation_scale():
 
 def test_rna_command_preserves_patient_order_and_refuses_overwrite(tmp_path, monkeypatch):
     expression, cohort = rna_inputs()
-    expression.to_csv(tmp_path / "expression.tsv.gz", sep="\t")
+    dirty = pd.concat([expression, expression.iloc[:1] + 2, expression.iloc[:1].rename(index={"gene0": "missing"})])
+    dirty.loc["missing", "sample11"] = np.nan
+    dirty.to_csv(tmp_path / "expression.tsv.gz", sep="\t")
+    cleaned = load_expression(tmp_path / "expression.tsv.gz", cohort["sample"].tolist())
+    assert cleaned.index.is_unique and "missing" not in cleaned.index
+    np.testing.assert_allclose(cleaned.loc["gene0"], expression.loc["gene0"] + 1, atol=1e-6)
+    expected = fit_rna_preprocessing(cleaned, cohort, top_n=12, invariant_per_bin=2)
     cohort.to_csv(tmp_path / "cohort.csv", index=False)
     output = tmp_path / "prepared"
     monkeypatch.setattr("sys.argv", [
@@ -161,6 +167,19 @@ def test_rna_command_preserves_patient_order_and_refuses_overwrite(tmp_path, mon
     with np.load(output / "images.npz", allow_pickle=False) as saved:
         np.testing.assert_array_equal(saved["patient"], cohort["patient"].to_numpy(str))
         np.testing.assert_array_equal(saved["partition"], cohort["partition"].to_numpy(str))
-        assert saved["images"].shape == (12, 3, 45, 45)
+        np.testing.assert_array_equal(saved["images"], transform_rna(cleaned, cohort, expected))
     with pytest.raises(FileExistsError):
         main()
+
+
+def test_rna_reader_matches_manuscript_cleanup_on_requested_samples(tmp_path):
+    source = pd.DataFrame({"s1": [1., 3., 7., np.nan, 5.], "s2": [2., 6., 8., 9., 10.],
+                           "unused": [np.nan] * 5}, index=["dup", "dup", "good", "missing", "keep"])
+    path = tmp_path / "expression.tsv.gz"
+    source.to_csv(path, sep="\t")
+    actual = load_expression(path, ["s2", "s1"])
+    expected = source[["s2", "s1"]].astype(np.float32).groupby(level=0).mean().dropna()
+    pd.testing.assert_frame_equal(actual, expected)
+    assert actual.loc["dup"].tolist() == [4., 2.]
+    with pytest.raises(ValueError):
+        load_expression(path, ["absent"])

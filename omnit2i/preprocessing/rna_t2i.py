@@ -8,6 +8,17 @@ from scipy.cluster.hierarchy import leaves_list, linkage
 from scipy.spatial.distance import squareform
 
 
+def load_expression(path, samples: list[str]) -> pd.DataFrame:
+    """Read the manuscript RNA input: average duplicate genes, drop NA rows."""
+    feature_column = pd.read_csv(path, sep="\t", nrows=0).columns[0]
+    expression = pd.read_csv(path, sep="\t", usecols=[feature_column, *samples], index_col=0)
+    expression.index = expression.index.astype(str)
+    expression = expression.loc[:, samples].apply(pd.to_numeric, errors="coerce").astype(np.float32)
+    if expression.index.has_duplicates:
+        expression = expression.groupby(level=0).mean()
+    return expression.loc[~expression.isna().any(axis=1)]
+
+
 def select_invariant_genes(
     expr: pd.DataFrame,
     train_samples: list[str],

@@ -12,6 +12,7 @@ from .rna_t2i import (
     corr_hclust_order,
     cox_score_z,
     fit_cancer_standardization,
+    load_expression,
     render_option2,
     sample_gamma,
     select_invariant_genes,
@@ -130,9 +131,7 @@ def main() -> None:
     parser.add_argument("--invariant-per-bin", type=int, default=50)
     args = parser.parse_args()
     cohort = validate_cohort(pd.read_csv(args.cohort, dtype={"patient": str, "sample": str}))
-    expression = pd.read_csv(args.expression, sep="\t", index_col=0)
-    expression.index = expression.index.astype(str)
-    expression = expression.loc[:, cohort["sample"].tolist()].astype(np.float32)
+    expression = load_expression(args.expression, cohort["sample"].tolist())
     artifact = fit_rna_preprocessing(
         expression, cohort, top_n=args.top_n, expression_bins=args.expression_bins,
         invariant_per_bin=args.invariant_per_bin,

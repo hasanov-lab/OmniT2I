@@ -216,3 +216,26 @@ def test_published_adaptations_train_without_test_outcomes(tmp_path, model):
     repeated = pd.read_csv(args.output_dir / "predictions.tsv.gz", sep="\t")
     np.testing.assert_array_equal(predictions.risk_score_raw, repeated.risk_score_raw)
     np.testing.assert_array_equal(predictions.risk_score_calibrated, repeated.risk_score_calibrated)
+
+
+def test_conventional_command_cleans_raw_rna(tmp_path, monkeypatch):
+    cohort, rna, expression, source = inputs()
+    dirty = pd.concat([expression, expression.iloc[:1] + 2, expression.iloc[:1].rename(index={"G0": "missing"})])
+    dirty.loc["missing", rna.iloc[-1]["sample"]] = np.nan
+    dirty.to_csv(tmp_path / "expression.tsv.gz", sep="\t")
+    cohort.to_csv(tmp_path / "cohort.csv", index=False)
+    rna.to_csv(tmp_path / "rna.csv", index=False)
+    np.savez_compressed(tmp_path / "targets.npz", **source)
+    monkeypatch.setattr("sys.argv", ["prepare", "--cohort", str(tmp_path / "cohort.csv"),
+        "--rna-cohort", str(tmp_path / "rna.csv"), "--expression", str(tmp_path / "expression.tsv.gz"),
+        "--targets", str(tmp_path / "targets.npz"), "--fold", "0", "--top-n", "4",
+        "--output", str(tmp_path / "prepared.npz")])
+    prepare.main()
+    cleaned = dirty.astype(np.float32).groupby(level=0).mean().dropna()
+    expected = prepare.prepare(cohort, rna, cleaned, source, 0, 4)
+    with np.load(tmp_path / "prepared.npz", allow_pickle=False) as saved:
+        for name in ("rna_feature_ids", "rna_target", "rna_train_mean", "rna_train_std"):
+            if name == "rna_feature_ids":
+                np.testing.assert_array_equal(saved[name], expected[name])
+            else:
+                np.testing.assert_allclose(saved[name], expected[name], atol=1e-6)

@@ -6,7 +6,7 @@ OmniT2I combines RNA, copy number, protein/RPPA, DNA methylation and H&E represe
 
 ## Installation
 
-Python 3.10 or later is required. Install a PyTorch build appropriate for your hardware, then run:
+Use Python 3.11 for the pinned environment below (Python 3.13 is incompatible with its PyTorch 2.4.1 pin). Install a PyTorch build appropriate for your hardware, then run:
 
 ```bash
 git clone https://github.com/stevenli11/OmniT2I.git

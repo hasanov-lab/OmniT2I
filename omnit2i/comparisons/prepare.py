@@ -8,6 +8,7 @@ import pandas as pd
 
 from omnit2i.models import MODALITIES
 from omnit2i.data import validate_cohort
+from omnit2i.preprocessing.rna_t2i import load_expression
 
 RNA_SCALE = "xena_log_expression_train_variance_top2000_z_no_invariant"
 
@@ -127,7 +128,7 @@ def main():
         source = dict(saved)
     cohort = pd.read_csv(args.cohort, dtype={"patient": str})
     rna = pd.read_csv(args.rna_cohort, dtype={"patient": str, "sample": str})
-    expression = pd.read_csv(args.expression, sep="\t", index_col=0).astype(np.float32)
+    expression = load_expression(args.expression, rna["sample"].astype(str).tolist())
     payload = prepare(cohort, rna, expression, source, args.fold, args.top_n)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(args.output, **payload)

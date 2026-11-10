@@ -129,3 +129,21 @@ def test_saved_target_alignment_and_feature_order_validation(tmp_path, evaluatio
     np.savez(tmp_path / "targets.npz", **archive)
     with pytest.raises(ValueError, match="feature IDs"):
         load_evaluation_targets(tmp_path / "targets.npz", tmp_path / "means.npz", data, {name: 12 for name in MODALITIES})
+
+
+def test_float64_reconstruction_metrics_preserve_inputs_and_uncentered_error():
+    rng = np.random.default_rng(1)
+    truth = rng.normal(size=(8, 4)) + 3
+    prediction = truth + rng.normal(size=(8, 4)) * .1
+    baseline = np.zeros_like(truth)
+    original = [x.copy() for x in (truth, prediction, baseline)]
+    metrics = _feature_metric_row(truth, prediction, baseline, np.array(["A"] * 4 + ["B"] * 4))
+    for actual, expected in zip((truth, prediction, baseline), original):
+        np.testing.assert_array_equal(actual, expected)
+    assert metrics["model_mse"] == pytest.approx(np.mean((prediction - truth) ** 2))
+    assert metrics["cancer_baseline_mse"] == pytest.approx(np.mean((baseline - truth) ** 2))
+    assert metrics["model_squared_error_sum"] == pytest.approx(np.sum((prediction - truth) ** 2))
+    columns = [np.corrcoef(truth[:, i], prediction[:, i])[0, 1] for i in range(4)]
+    rows = [np.corrcoef(t, p)[0, 1] for t, p in zip(truth, prediction)]
+    assert metrics["feature_pearson_mean"] == pytest.approx(np.mean(columns))
+    assert metrics["patient_pearson_mean"] == pytest.approx(np.mean(rows))

@@ -23,7 +23,7 @@ The modality order is **RNA, CNV, protein, methylation, H&E**. The spatial encod
 
 ```bash
 python examples/model_components.py
-pip install '.[test,data,training,analysis]'
+pip install '.[test,data,training,analysis,comparisons]'
 python -m pytest -q
 ```
 
@@ -39,7 +39,7 @@ The [raw-table and cohort commands](cohorts.md) select primary-tumour OS cohorts
 omnit2i-prepare-rna --expression expression.tsv.gz --cohort cohort.csv --output-dir outputs/rna
 ```
 
-The expression TSV has gene IDs in its first column and sample IDs in the remaining column headers. Supply expression on the intended upstream scale; the command does not log-transform raw counts. Gene and sample IDs must be unique, and the selected and invariant genes must have finite values for every requested sample. Missing required genes raise an error.
+The expression TSV has gene IDs in its first column and sample IDs in the remaining column headers. Supply expression on the intended upstream scale; the command does not log-transform raw counts. Sample IDs must be unique. The reader averages duplicate gene IDs and drops genes with missing values across the requested samples, as in the manuscript pipeline; the selected and invariant genes must have finite values for every requested sample. Missing required genes raise an error.
 
 The cohort CSV contains `patient,sample,cancer_type,time,event,partition`. Each row is one unique patient and sample; `partition` is `core`, `validation`, or `test`, `time` is positive follow-up time in a consistent unit, and `event` is 1 for an observed event and 0 for censoring. Supply the same patient partitions to all modalities. The command preserves those partitions and does not generate a new split.
 

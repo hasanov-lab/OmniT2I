@@ -273,7 +273,7 @@ def main():
     if args.scanb:
         expression, denominator_genes = scanb_expression(args.expression, clinical["sample"].tolist(), needed)
     else:
-        expression = pd.read_csv(args.expression, sep="\t", index_col=0).loc[:, clinical["sample"]]
+        expression = pd.read_csv(args.expression, sep="\t", index_col=0).loc[:, clinical["sample"]].astype(np.float32)
         denominator_genes = None
     mapped = map_expression(expression, mapping, saved)
     images, audit = transform_external(mapped, saved, clinical.cancer_type.to_numpy(str))

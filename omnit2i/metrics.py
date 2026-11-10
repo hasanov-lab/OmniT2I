@@ -8,8 +8,8 @@ def _correlation_rows(
 ) -> np.ndarray:
     actual = np.asarray(truth, dtype=np.float64)
     estimate = np.asarray(prediction, dtype=np.float64)
-    actual -= actual.mean(axis=1, keepdims=True)
-    estimate -= estimate.mean(axis=1, keepdims=True)
+    actual = actual - actual.mean(axis=1, keepdims=True)
+    estimate = estimate - estimate.mean(axis=1, keepdims=True)
     denominator = np.linalg.norm(actual, axis=1) * np.linalg.norm(
         estimate, axis=1
     )
@@ -26,8 +26,8 @@ def _correlation_columns(
 ) -> np.ndarray:
     actual = np.asarray(truth, dtype=np.float64)
     estimate = np.asarray(prediction, dtype=np.float64)
-    actual -= actual.mean(axis=0, keepdims=True)
-    estimate -= estimate.mean(axis=0, keepdims=True)
+    actual = actual - actual.mean(axis=0, keepdims=True)
+    estimate = estimate - estimate.mean(axis=0, keepdims=True)
     denominator = np.sqrt(
         np.sum(actual**2, axis=0) * np.sum(estimate**2, axis=0)
     )
