@@ -64,7 +64,7 @@ def _measured_pixels(image: torch.Tensor, n_features: int) -> torch.Tensor:
         raise ValueError("Image must have shape [patients, 3, height, width]")
     if not 0 < n_features <= image.shape[2] * image.shape[3]:
         raise ValueError("Measured feature count must fit the image grid")
-    # Preserve historical flat ordering while excluding serpentine padding.
+    # Select occupied serpentine pixels in ascending index order; padding stays excluded.
     pixels = np.sort(snake_pixel_indices(image.shape[2], image.shape[3])[:n_features])
     return torch.as_tensor(pixels, device=image.device)
 
