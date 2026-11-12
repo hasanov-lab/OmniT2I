@@ -195,8 +195,9 @@ Outputs include `model.pt`, `frozen_fallback.pt` (the source survival model plus
 
 ## H&E preprocessing
 
+First complete the [Prov-GigaPath setup](../README.md#prov-gigapath-for-he-extraction): obtain model access, install the H&E dependencies, log in to Hugging Face, and check the tile encoder loads. Use the same cache directory when running the extraction commands below.
+
 ```bash
-pip install '.[he]'
 omnit2i-sample-he --table one_slide_per_patient.tsv --svs-root slides \
   --outdir patches --report-dir reports
 omnit2i-embed-he --patch-table patches/full_he_64patch_bag_patch_table.tsv \
