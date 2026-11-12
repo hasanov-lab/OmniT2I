@@ -2,9 +2,15 @@
 
 A unified table-to-image framework for survival prediction and cross-modal inference with incomplete multimodal cancer data.
 
-OmniT2I combines RNA, copy number, protein/RPPA, DNA methylation and H&E representations. It predicts survival from available modalities and infers withheld molecular profiles or H&E embeddings. The four molecular modalities use a shared serpentine placement path for their three-channel images.
-
 **Paper:** [OmniT2I: a unified table-to-image framework for survival prediction and cross-modal inference with incomplete multimodal cancer data](https://www.biorxiv.org/content/10.64898/2026.11.08.765158v1) · bioRxiv, 2026
+
+## Overview
+
+Cancer cohorts often contain complementary molecular and histological measurements, with different modalities available for different patients. **OmniT2I** integrates RNA expression, copy number, protein/RPPA, DNA methylation and H&E images in a unified framework for survival prediction and cross-modal inference under incomplete modality coverage.
+
+Molecular profiles are converted into three-channel table-to-image representations using correlation-based feature ordering and serpentine placement. Modality-specific encoders learn molecular representations, while frozen Prov-GigaPath features and a trainable adapter represent H&E slides. A shared projection maps the five modalities into a common embedding space.
+
+For **survival prediction**, availability-aware gated fusion combines the observed modalities into a patient representation and produces a risk score. For **cross-modal inference**, a target-conditioned translator predicts a withheld modality's embedding from the observed sources, excluding that target from its inputs. Target-specific decoders recover molecular features or patient-level H&E embeddings, and the shared fusion and survival head allow the inferred representation to be used for risk prediction.
 
 ![OmniT2I framework: multimodal cohort, serpentine molecular inputs, representation learning, survival prediction and cross-modal inference.](docs/assets/figure1.png)
 
