@@ -8,7 +8,7 @@
 <p align="center">
   <a href="https://pengli.org/highlights/biorxiv-omnit2i/"><img src="https://img.shields.io/badge/🏠_Homepage-OmniT2I-0099FF?style=flat-square&amp;labelColor=555555" alt="Homepage"></a>
   <a href="https://www.biorxiv.org/content/10.64898/2026.11.08.765158v1"><img src="https://img.shields.io/badge/📄_bioRxiv-2026.11.08.765158-E53935?style=flat-square&amp;labelColor=555555" alt="bioRxiv preprint"></a>
-  <a href="https://www.python.org/downloads/release/python-3110/"><img src="https://img.shields.io/badge/Python-3.11-FFD43B?style=flat-square&amp;logo=python&amp;logoColor=FFD43B&amp;labelColor=555555" alt="Python 3.11"></a>
+  <a href="https://www.python.org/downloads/release/python-3100/"><img src="https://img.shields.io/badge/Python-3.10-FFD43B?style=flat-square&amp;logo=python&amp;logoColor=FFD43B&amp;labelColor=555555" alt="Python 3.10"></a>
 </p>
 
 ![OmniT2I framework: multimodal cohort, table-to-image representations, representation learning, survival prediction and cross-modal inference.](docs/assets/figure1.png)
@@ -55,12 +55,12 @@ OmniT2I/
 
 ## ⚙️ Installation
 
-Run the commands below from the repository root. Create a Python 3.11 environment and install the dependencies:
+Run the commands below from the repository root. Create a Python 3.10 environment and install the dependencies:
 
 ```bash
 git clone https://github.com/stevenli11/OmniT2I.git
 cd OmniT2I
-conda create -n omnit2i python=3.11 -y
+conda create -n omnit2i python=3.10 -y
 conda activate omnit2i
 pip install -r requirements.txt
 ```
