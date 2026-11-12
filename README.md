@@ -6,9 +6,9 @@
 </p>
 
 <p align="center">
-  <a href="https://pengli.org/highlights/biorxiv-omnit2i/"><img src="https://img.shields.io/badge/🏠_Homepage-OmniT2I-0099FF?style=flat-square&amp;labelColor=0057B8" alt="Homepage"></a>
-  <a href="https://www.biorxiv.org/content/10.64898/2026.11.08.765158v1"><img src="https://img.shields.io/badge/📄_bioRxiv-2026.11.08.765158-E53935?style=flat-square&amp;labelColor=B71C1C" alt="bioRxiv preprint"></a>
-  <a href="https://www.python.org/downloads/release/python-3110/"><img src="https://img.shields.io/badge/Python-3.11-FFD43B?style=flat-square&amp;logo=python&amp;logoColor=FFD43B&amp;labelColor=306998" alt="Python 3.11"></a>
+  <a href="https://pengli.org/highlights/biorxiv-omnit2i/"><img src="https://img.shields.io/badge/🏠_Homepage-OmniT2I-0099FF?style=flat-square&amp;labelColor=555555" alt="Homepage"></a>
+  <a href="https://www.biorxiv.org/content/10.64898/2026.11.08.765158v1"><img src="https://img.shields.io/badge/📄_bioRxiv-2026.11.08.765158-E53935?style=flat-square&amp;labelColor=555555" alt="bioRxiv preprint"></a>
+  <a href="https://www.python.org/downloads/release/python-3110/"><img src="https://img.shields.io/badge/Python-3.11-FFD43B?style=flat-square&amp;logo=python&amp;logoColor=FFD43B&amp;labelColor=555555" alt="Python 3.11"></a>
 </p>
 
 ![OmniT2I framework: multimodal cohort, serpentine molecular inputs, representation learning, survival prediction and cross-modal inference.](docs/assets/figure1.png)
