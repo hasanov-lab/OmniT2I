@@ -1,10 +1,19 @@
-# OmniT2I
+<h1 align="center">OmniT2I: A Unified Table-to-Image Framework<br>for Survival Prediction and Cross-Modal Inference<br>with Incomplete Multimodal Cancer Data</h1>
 
-A unified table-to-image framework for survival prediction and cross-modal inference with incomplete multimodal cancer data.
+<p align="center">
+  Official repository for the paper<br>
+  <em>OmniT2I: a unified table-to-image framework for survival prediction and cross-modal inference with incomplete multimodal cancer data</em>
+</p>
 
-**Paper:** [OmniT2I: a unified table-to-image framework for survival prediction and cross-modal inference with incomplete multimodal cancer data](https://www.biorxiv.org/content/10.64898/2026.11.08.765158v1) · bioRxiv, 2026
+<p align="center">
+  <a href="https://github.com/stevenli11/OmniT2I"><img src="https://img.shields.io/badge/🏠_Homepage-OmniT2I-blue" alt="Homepage"></a>
+  <a href="https://www.biorxiv.org/content/10.64898/2026.11.08.765158v1"><img src="https://img.shields.io/badge/bioRxiv-2026.11.08.765158-b31b1b" alt="bioRxiv preprint"></a>
+  <a href="https://www.python.org/downloads/release/python-3110/"><img src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white" alt="Python 3.11"></a>
+</p>
 
-## Overview
+![OmniT2I framework: multimodal cohort, serpentine molecular inputs, representation learning, survival prediction and cross-modal inference.](docs/assets/figure1.png)
+
+## 📖 Overview
 
 Cancer cohorts often contain complementary molecular and histological measurements, with different modalities available for different patients. **OmniT2I** integrates RNA expression, copy number, protein/RPPA, DNA methylation and H&E images in a unified framework for survival prediction and cross-modal inference under incomplete modality coverage.
 
@@ -12,9 +21,29 @@ Molecular profiles are converted into three-channel table-to-image representatio
 
 For **survival prediction**, availability-aware gated fusion combines the observed modalities into a patient representation and produces a risk score. For **cross-modal inference**, a target-conditioned translator predicts a withheld modality's embedding from the observed sources, excluding that target from its inputs. Target-specific decoders recover molecular features or patient-level H&E embeddings, and the shared fusion and survival head allow the inferred representation to be used for risk prediction.
 
-![OmniT2I framework: multimodal cohort, serpentine molecular inputs, representation learning, survival prediction and cross-modal inference.](docs/assets/figure1.png)
+## 📂 Project Structure
 
-## Installation
+```text
+OmniT2I/
+├── omnit2i/
+│   ├── models/          # Molecular encoders, fusion and cross-modal translation
+│   ├── preprocessing/   # Cohort assembly, serpentine T2I and H&E extraction
+│   ├── training/        # Molecular, fusion and joint training; ablations
+│   ├── comparisons/     # Conventional comparison models
+│   ├── analysis/        # Survival and cross-modal analysis utilities
+│   ├── evaluation.py    # Frozen subset evaluation
+│   └── external.py      # External RNA cohort prediction and summaries
+├── examples/            # Runnable synthetic examples
+├── analysis/            # Manuscript analysis scripts
+├── figures/             # Manuscript plotting scripts
+├── docs/                # Usage guides and Figure 1 artwork
+├── tests/               # Software tests with synthetic fixtures
+├── requirements.txt     # Runtime dependencies
+├── pyproject.toml       # Package metadata and command-line entry points
+└── LICENSE              # PolyForm Noncommercial License 1.0.0
+```
+
+## ⚙️ Installation
 
 Run the commands below from the repository root. Create a Python 3.11 environment and install the dependencies:
 
@@ -26,9 +55,9 @@ conda activate omnit2i
 pip install -r requirements.txt
 ```
 
-The requirements include the package itself and the dependencies for molecular preprocessing, training and analysis. They pin PyTorch 2.4.1; for GPU use, install the matching CUDA build from the [PyTorch installation instructions](https://pytorch.org/get-started/previous-versions/#v241) before installing the requirements. H&E extraction needs the additional packages listed under [Pretrained models](#pretrained-models). For just the core package, use `pip install .` instead of the requirements file.
+The requirements include the package itself and the dependencies for molecular preprocessing, training and analysis. They pin PyTorch 2.4.1; for GPU use, install the matching CUDA build from the [PyTorch installation instructions](https://pytorch.org/get-started/previous-versions/#v241) before installing the requirements. H&E extraction needs the additional packages listed under [Pretrained models](#-pretrained-models). For just the core package, use `pip install .` instead of the requirements file.
 
-## Quick start
+## 💻 Quick Start
 
 Try the model components with synthetic data:
 
@@ -44,7 +73,7 @@ python examples/multimodal_workflow.py --output-dir outputs/synthetic_multimodal
 
 Both examples generate data locally and use randomly initialized models. They require no patient data, pretrained weights or Hugging Face account.
 
-## Data
+## 🗂️ Data
 
 Download the public inputs from their original repositories:
 
@@ -58,7 +87,7 @@ Download the public inputs from their original repositories:
 
 Cohort-specific releases and adopted inputs are listed in the manuscript's Supplementary Table 20. Downloaded patient data stay local and are not bundled in this repository. Input formats and preparation commands are in the [data preparation guide](docs/workflows.md#cohort-assembly).
 
-## Pretrained models
+## 🤗 Pretrained Models
 
 ### OmniT2I checkpoints
 
@@ -109,7 +138,7 @@ The H&E branch uses the frozen **Prov-GigaPath tile encoder** (`prov-gigapath/pr
 
 The encoder and its access terms are supplied by [Prov-GigaPath](https://huggingface.co/prov-gigapath/prov-gigapath); they are separate from the OmniT2I code license.
 
-## Usage
+## 🚀 Usage
 
 After the synthetic example, follow the commands for your own data:
 
@@ -117,7 +146,7 @@ After the synthetic example, follow the commands for your own data:
 - [Survival and cross-modal analyses from saved predictions](analysis/README.md)
 - [Manuscript figures from Source Data](figures/README.md)
 
-## Citation
+## 📝 Citation
 
 If you use OmniT2I in your research, please cite:
 
@@ -132,7 +161,7 @@ If you use OmniT2I in your research, please cite:
 }
 ```
 
-## License
+## 📄 License
 
 Copyright 2026 The Ohio State University. Licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use requires separate permission from the rights holder. Third-party models and datasets retain their own licenses and access terms.
 
