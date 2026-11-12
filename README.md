@@ -26,7 +26,12 @@ For **survival prediction**, availability-aware gated fusion combines the observ
 ```text
 OmniT2I/
 ├── omnit2i/
-│   ├── models/          # Molecular encoders, fusion and cross-modal translation
+│   ├── models/          # Main model components
+│   │   ├── encoders.py                        # Molecular encoders and H&E adapter
+│   │   ├── shared_projection_fusion.py        # Shared embedding projection and fusion
+│   │   ├── masked_gated_fusion.py             # Availability-aware gated fusion
+│   │   ├── target_conditioned_cross_modal_translator.py  # Cross-modal prediction and decoding
+│   │   └── survival.py                        # Integrated survival and multitask models
 │   ├── preprocessing/   # Cohort assembly, serpentine T2I and H&E extraction
 │   ├── training/        # Molecular, fusion and joint training; ablations
 │   ├── comparisons/     # Conventional comparison models
@@ -34,9 +39,14 @@ OmniT2I/
 │   ├── evaluation.py    # Frozen subset evaluation
 │   └── external.py      # External RNA cohort prediction and summaries
 ├── examples/            # Runnable synthetic examples
+│   ├── model_components.py     # Model component demonstrations
+│   ├── rna_workflow.py         # RNA preprocessing and training
+│   └── multimodal_workflow.py  # Multimodal training, inference and evaluation
 ├── analysis/            # Manuscript analysis scripts
 ├── figures/             # Manuscript plotting scripts
 ├── docs/                # Usage guides and Figure 1 artwork
+│   ├── cohorts.md             # Raw molecular tables and cohort assembly
+│   └── workflows.md           # Preprocessing, training and inference commands
 ├── tests/               # Software tests with synthetic fixtures
 ├── requirements.txt     # Runtime dependencies
 ├── pyproject.toml       # Package metadata and command-line entry points
