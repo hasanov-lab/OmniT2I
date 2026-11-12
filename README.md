@@ -57,6 +57,17 @@ pip install -r requirements.txt
 
 The requirements include the package itself and the dependencies for molecular preprocessing, training and analysis. They pin PyTorch 2.4.1; for GPU use, install the matching CUDA build from the [PyTorch installation instructions](https://pytorch.org/get-started/previous-versions/#v241) before installing the requirements. H&E extraction needs the additional packages listed under [Pretrained models](#-pretrained-models). For just the core package, use `pip install .` instead of the requirements file.
 
+## 💻 Hardware Requirements
+
+| Task | Hardware |
+| --- | --- |
+| Synthetic examples | CPU |
+| Molecular preprocessing and analysis of saved predictions | CPU |
+| Model training and inference | A single CUDA-capable GPU is recommended |
+| Prov-GigaPath H&E feature extraction | A single CUDA-capable GPU is recommended; adjust `--batch-size` to fit available GPU memory |
+
+Seeds and folds can run sequentially on the same GPU. Full-cohort reference training jobs allocated 12 CPU cores and 32 GB of system RAM per GPU worker; these allocations are not minimum requirements. GPU memory needs depend on cohort size and training stage. Cox training retains the full core-patient risk set, so its memory use cannot be reduced simply by splitting the loss into independent minibatches.
+
 ## 💻 Quick Start
 
 Try the model components with synthetic data:
