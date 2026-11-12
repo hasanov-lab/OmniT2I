@@ -6,16 +6,16 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/stevenli11/OmniT2I"><img src="https://img.shields.io/badge/🏠_Homepage-OmniT2I-blue" alt="Homepage"></a>
-  <a href="https://www.biorxiv.org/content/10.64898/2026.11.08.765158v1"><img src="https://img.shields.io/badge/bioRxiv-2026.11.08.765158-b31b1b" alt="bioRxiv preprint"></a>
-  <a href="https://www.python.org/downloads/release/python-3110/"><img src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white" alt="Python 3.11"></a>
+  <a href="https://pengli.org/highlights/biorxiv-omnit2i/"><img src="https://img.shields.io/badge/🏠_Homepage-OmniT2I-0099FF?style=flat-square&amp;labelColor=0057B8" alt="Homepage"></a>
+  <a href="https://www.biorxiv.org/content/10.64898/2026.11.08.765158v1"><img src="https://img.shields.io/badge/📄_bioRxiv-2026.11.08.765158-E53935?style=flat-square&amp;labelColor=B71C1C" alt="bioRxiv preprint"></a>
+  <a href="https://www.python.org/downloads/release/python-3110/"><img src="https://img.shields.io/badge/Python-3.11-FFD43B?style=flat-square&amp;logo=python&amp;logoColor=FFD43B&amp;labelColor=306998" alt="Python 3.11"></a>
 </p>
 
 ![OmniT2I framework: multimodal cohort, serpentine molecular inputs, representation learning, survival prediction and cross-modal inference.](docs/assets/figure1.png)
 
 ## 📖 Overview
 
-Cancer cohorts often contain complementary molecular and histological measurements, with different modalities available for different patients. **OmniT2I** integrates RNA expression, copy number, protein/RPPA, DNA methylation and H&E images in a unified framework for survival prediction and cross-modal inference under incomplete modality coverage.
+Multimodal cancer cohorts are often incomplete, with patients missing one or more molecular or histological modalities. **OmniT2I** integrates RNA expression, copy number, protein/RPPA, DNA methylation and H&E images in a unified framework for survival prediction and cross-modal inference under incomplete modality coverage.
 
 Molecular profiles are converted into three-channel table-to-image representations using correlation-based feature ordering and serpentine placement. Modality-specific encoders learn molecular representations, while frozen Prov-GigaPath features and a trainable adapter represent H&E slides. A shared projection maps the five modalities into a common embedding space.
 
@@ -72,6 +72,12 @@ python examples/multimodal_workflow.py --output-dir outputs/synthetic_multimodal
 ```
 
 Both examples generate data locally and use randomly initialized models. They require no patient data, pretrained weights or Hugging Face account.
+
+After the synthetic example, follow the commands for your own data:
+
+- [Data preparation, model training and inference](docs/workflows.md)
+- [Survival and cross-modal analyses from saved predictions](analysis/README.md)
+- [Manuscript figures from Source Data](figures/README.md)
 
 ## 🗂️ Data
 
@@ -137,14 +143,6 @@ The H&E branch uses the frozen **Prov-GigaPath tile encoder** (`prov-gigapath/pr
    Use `--device cpu` if CUDA is unavailable. The case embedding table is written to `embeddings/full_he_gigapath_64patch_mean_case_mean_embeddings.tsv`. See [H&E preprocessing](docs/workflows.md#he-preprocessing) for additional slides, patient pooling and alignment to the molecular cohort.
 
 The encoder and its access terms are supplied by [Prov-GigaPath](https://huggingface.co/prov-gigapath/prov-gigapath); they are separate from the OmniT2I code license.
-
-## 🚀 Usage
-
-After the synthetic example, follow the commands for your own data:
-
-- [Data preparation, model training and inference](docs/workflows.md)
-- [Survival and cross-modal analyses from saved predictions](analysis/README.md)
-- [Manuscript figures from Source Data](figures/README.md)
 
 ## 📝 Citation
 
