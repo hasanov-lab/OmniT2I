@@ -11,13 +11,13 @@
   <a href="https://www.python.org/downloads/release/python-3110/"><img src="https://img.shields.io/badge/Python-3.11-FFD43B?style=flat-square&amp;logo=python&amp;logoColor=FFD43B&amp;labelColor=555555" alt="Python 3.11"></a>
 </p>
 
-![OmniT2I framework: multimodal cohort, serpentine molecular inputs, representation learning, survival prediction and cross-modal inference.](docs/assets/figure1.png)
+![OmniT2I framework: multimodal cohort, table-to-image representations, representation learning, survival prediction and cross-modal inference.](docs/assets/figure1.png)
 
 ## 📖 Overview
 
 Multimodal cancer cohorts are often incomplete, with patients missing one or more molecular or histological modalities. **OmniT2I** integrates RNA expression, copy number, protein/RPPA, DNA methylation and H&E images in a unified framework for survival prediction and cross-modal inference under incomplete modality coverage.
 
-Molecular profiles are converted into three-channel table-to-image representations using correlation-based feature ordering and serpentine placement. Modality-specific encoders learn molecular representations, while frozen Prov-GigaPath features and a trainable adapter represent H&E slides. A shared projection maps the five modalities into a common embedding space.
+Molecular profiles are converted into three-channel table-to-image representations. Modality-specific encoders learn molecular representations, while frozen Prov-GigaPath features and a trainable adapter represent H&E slides. A shared projection maps the five modalities into a common embedding space.
 
 For **survival prediction**, availability-aware gated fusion combines the observed modalities into a patient representation and produces a risk score. For **cross-modal inference**, a target-conditioned translator predicts a withheld modality's embedding from the observed sources, excluding that target from its inputs. Target-specific decoders recover molecular features or patient-level H&E embeddings, and the shared fusion and survival head allow the inferred representation to be used for risk prediction.
 
