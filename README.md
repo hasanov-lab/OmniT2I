@@ -58,7 +58,7 @@ OmniT2I/
 Run the commands below from the repository root. Create a Python 3.10 environment and install the dependencies:
 
 ```bash
-git clone https://github.com/stevenli11/OmniT2I.git
+git clone https://github.com/hasanov-lab/OmniT2I.git
 cd OmniT2I
 conda create -n omnit2i python=3.10 -y
 conda activate omnit2i
